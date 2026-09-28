@@ -1,0 +1,31 @@
+# Secrets
+.env
+*.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# Data (large raw datasets are fetched by ingest scripts)
+data/raw/
+media/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Hackathon brief (not ours to redistribute)
+Savomart_FullStack_Hackathon_Task.pdf
