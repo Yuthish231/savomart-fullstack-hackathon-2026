@@ -1,0 +1,18 @@
+{
+  "_source": "Savomart Stores API (GET /bridge/api/store/list?is_operational=True), filtered to zone=CHN",
+  "_fetched": "2026-09-28",
+  "_note": "Fallback used when STORES_API_TOKEN is not configured. Address pincodes are kept as published; coordinates are authoritative.",
+  "data": [
+    {"store_code": "OCHNARS01", "name": "Avadi Road, Senneerkuppam", "address": "Avadi Road, No.54, Senneerkuppam, Karayanchavadi, Church Main Road, Chennai, Tamil Nadu, 600056", "geocoordinates": {"latitude": 13.05117632, "longitude": 80.11253414}, "is_operational": true, "zone": "CHN"},
+    {"store_code": "OCHNKNT01", "name": "Kaveri Nagar, Thiruvanmiyur", "address": "Kaveri Nagar, Thiruvanmiyur, Door No. 231, Kuppam Road, Kaveri Nagar, Chennai, Tamil Nadu, 600068", "geocoordinates": {"latitude": 12.973889, "longitude": 80.263194}, "is_operational": true, "zone": "CHN"},
+    {"store_code": "OCHNLKP01", "name": "Lakshmipuram", "address": "Lakshmipuram, Plot No.14, 40 feet Road, Srinivasa Nagar,, Ayyan Thiruvalluvar Salai, Near Export Office (N032),, Chennai, Tamil Nadu, 600053", "geocoordinates": {"latitude": 13.13737372, "longitude": 80.20133418}, "is_operational": true, "zone": "CHN"},
+    {"store_code": "OCHNMAN01", "name": "Manali", "address": "Manali, No 3/27/1, Parthasarathy Street,, Chinnachekkadu North, Chinnachekkadu, Chennai, Tamil Nadu, 600068", "geocoordinates": {"latitude": 13.162268, "longitude": 80.258632}, "is_operational": true, "zone": "CHN"},
+    {"store_code": "OCHNMAT01", "name": "Mathur", "address": "Mathur, Plot no. 4051/MIG type,, TNHB, MMDA 1st main road, Mathur, Chennai, Tamil Nadu, 600068", "geocoordinates": {"latitude": 13.167768, "longitude": 80.247988}, "is_operational": true, "zone": "CHN"},
+    {"store_code": "OCHNPLV01", "name": "Palavakkam", "address": "Palavakkam, Door No.2/183, EVR Periyar Salai,, S. No 100/2, Palavakkam, Chennai, Tamil Nadu, 600041", "geocoordinates": {"latitude": 12.96430471, "longitude": 80.25421793}, "is_operational": true, "zone": "CHN"},
+    {"store_code": "OCHNPER01", "name": "Perambur", "address": "Perambur, No. 9, Jawahar Street, Madhavaram, Ramana Nagar, Chennai, Tamil Nadu, 600011", "geocoordinates": {"latitude": 13.11948864, "longitude": 80.2448056}, "is_operational": true, "zone": "CHN"},
+    {"store_code": "OCHNSNT01", "name": "Sakthivel Nagar, Thiruverkadu", "address": "Sakthivel Nagar, Thiruverkadu, P No. A3,, S No. 169/2, Sivan Koil Street, Chennai, Tamil Nadu, 600077", "geocoordinates": {"latitude": 13.071371, "longitude": 80.115341}, "is_operational": true, "zone": "CHN"},
+    {"store_code": "OCHNTNC01", "name": "Thamarai Nagar, Cholambedu", "address": "Thamarai Nagar, New S No.3/2, No. SF No.531/1A1B Part, 533/1A Part,, Choolambedu Main Road, Thirumullaivoyal, Chennai, Tamil Nadu, 600062", "geocoordinates": {"latitude": 13.12083988, "longitude": 80.13787845}, "is_operational": true, "zone": "CHN"},
+    {"store_code": "OCHNTND01", "name": "Tondiarpet", "address": "Tondiarpet, S No.3647/18, Block No.54, Old Door No.81, New Door No.48,, Thandavarayagramani Street, Chennai, Tamil Nadu, 600081", "geocoordinates": {"latitude": 13.12289502, "longitude": 80.29022281}, "is_operational": true, "zone": "CHN"},
+    {"store_code": "OCHNVNK01", "name": "Vivekananda Nagar, Kodungaiyur East", "address": "Vivekananda Nagar, Kodungaiyur East, No.69 (96), Meenambal Salai,, Erukkencherry, Ambedkar 2nd  Street, Chennai, Tamil Nadu, 600118", "geocoordinates": {"latitude": 13.12916511, "longitude": 80.25880305}, "is_operational": true, "zone": "CHN"}
+  ]
+}

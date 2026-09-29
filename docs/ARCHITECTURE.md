@@ -163,17 +163,18 @@ savomart-fullstack-hackathon-2026/
 │   │   └── storage/            # media storage interface (local disk impl)
 │   ├── alembic/                # migrations
 │   ├── scripts/seed.py         # personas, demo areas, properties, a completed study
+│   ├── ingest/                 # data pipeline (shares the backend venv + settings)
+│   │   ├── categories.py       # OSM tag → category/footfall weight/competitor tier
+│   │   ├── fetch_osm.py        # tiled, cached Overpass downloads → data/raw/osm/
+│   │   ├── boundaries.py       # DataMeet CMA + GCC wards → old-city footprint
+│   │   ├── pincodes.py         # data.gov.in pincode polygons (GeoParquet mirror)
+│   │   ├── stores.py           # Savomart Stores API (or committed snapshot)
+│   │   ├── load_osm.py         # POIs, buildings, roads → lane segments
+│   │   ├── population.py       # Census 2011 control totals → dasymetric by building
+│   │   ├── h3_grid.py          # H3 res-9 features, neighbourhoods, percentile tables
+│   │   ├── rents.py            # MOCK rent bands per pincode
+│   │   └── run_all.py
 │   └── tests/
-├── ingest/
-│   ├── config/categories.yaml  # OSM tag → SiteScout category/weight, competitor brand regexes
-│   ├── fetch_osm.py            # tiled Overpass queries → data/raw/osm/*.json
-│   ├── fetch_pincodes.py       # OGD pincode boundaries + post-office directory
-│   ├── fetch_census.py         # Census 2011 ward/town population & households
-│   ├── fetch_stores.py         # Savomart Stores API → data/raw/stores.json (snapshot)
-│   ├── clean_load.py           # normalise, dedupe, classify, COPY into ref.*
-│   ├── build_lanes.py          # split OSM ways at intersections → ref.lane_segment
-│   ├── precompute_h3.py        # ref.h3_cell features + city percentiles
-│   └── run_all.py
 ├── frontend/
 │   └── src/
 │       ├── app/                # providers, router, theme (brand tokens)
@@ -231,7 +232,7 @@ flowchart LR
 
 | Source | Used for | Processing | As-of |
 |---|---|---|---|
-| OSM via Overpass (tiled 0.05° over the CMA bbox) | POIs (shops, supermarkets, schools, hospitals, offices, transit, worship), roads, buildings | Category mapping from `categories.yaml`; organised-competitor detection via `brand`/`name` regex (Reliance Fresh/Smart, More, Nilgiris, DMart, Spencer's, Star Bazaar, Ratnadeep…); node/way dedupe | Download timestamp |
+| OSM via Overpass (tiled 0.05° over the CMA bbox) | POIs (shops, supermarkets, schools, hospitals, offices, transit, worship), roads, buildings | Category mapping in `ingest/categories.py`; organised-competitor detection via `brand`/`name` regex (Reliance Fresh/Smart, More, Nilgiris, DMart, Spencer's, Star Bazaar, Ratnadeep…); node/way dedupe | Download timestamp |
 | OGD pincode boundaries (GeoJSON) | Pincode selection, report labels | Filter to CMA bbox, `ST_MakeValid`, multipolygons | Dataset date |
 | OGD pincode directory | Locality search fallback, pincode ↔ locality names | Filter TN / Chennai districts | Dataset date |
 | Census 2011 (Primary Census Abstract) | Population, households | Join to ward/town polygons. **Dasymetric split**: ward population allocated to H3 cells in proportion to residential building footprint area | 2011 (shown as such, with an "aged data" note) |

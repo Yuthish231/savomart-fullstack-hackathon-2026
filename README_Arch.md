@@ -143,15 +143,25 @@ _[Link to a schema diagram or migration files if useful.]_
 
 ## Data Sources & Processing
 
+Everything is loaded by a re-runnable pipeline into the `ref` schema. Every dataset writes a provenance row to `ref.data_source` (URL, licence, as-of date, row count, `is_mock`), and reports cite those rows.
+
+```bash
+cd backend
+python -m ingest.fetch_osm   # Overpass downloads, tiled + cached in data/raw/osm (about 10 min, once)
+python -m ingest.run_all     # boundaries → pincodes → stores → OSM → population → H3 grid → rents
+```
+
 | Source | Used for | How we processed it |
 | --- | --- | --- |
-| OpenStreetMap (Geofabrik) | [e.g. shops, competition density] | [cleaning/filtering steps] |
-| Overpass API | [on-demand feature queries] | |
-| Nominatim | [geocoding] | |
-| Pincode boundaries (OGD India) | | |
-| Census of India | | |
-| Savomart Stores API (internal) | [existing store proximity] | |
-| [Mock data] | [e.g. rents — no public source] | **Clearly labelled as mock in the UI and here.** |
+| **OpenStreetMap via Overpass API** (ODbL) | POIs (shops, schools, hospitals, transit, offices, worship, parks), ~380k buildings, road network | Tiled queries over the CMA bbox with on-disk cache, mirror fallback and adaptive tile splitting when servers time out. De-duplicated across tiles and between node/way mappings of the same place (same name ≤ 30 m). Clipped to the CMA polygon. POIs classified by [`ingest/categories.py`](backend/ingest/categories.py) into footfall weights and grocery competitor tiers (organised chain / supermarket / kirana), including brand-name regexes that tolerate misspellings. Roads split at every intersection and into ≤ 250 m **lane segments** with stable ids (`<way>:<seq>`) for survey work and reuse. |
+| **DataMeet Municipal Spatial Data** (CC BY 4.0) | CMA boundary (1,188 km²), 200 GCC ward polygons | The 107 wards in zones IV, V, VI, VIII, IX, X, XIII form the pre-2011 city (172.7 km², which matches the historic 174 km²), used as the footprint of Census 2011 "Chennai (M Corp.)". |
+| **All India Pincode Boundary** (data.gov.in / India Post; OGD licence) | Pincode selection, labels, rent bands | Read from the GeoParquet mirror in [`yashveeeeeeer/india-geodata`](https://github.com/yashveeeeeeer/india-geodata). Multi-part pincodes unioned, kept if ≥ 5% inside the CMA (124 pincodes). |
+| **Census of India 2011** | Population baseline | Control totals: Chennai (M Corp.) 4,646,732 and Chennai UA 8,653,521. **Dasymetric allocation:** each zone's population is spread over OSM buildings by residential weight (floors × residential likelihood). This is a 2011 baseline, so scores use city-relative percentiles and M3 lane surveys override it. |
+| **Savomart Stores API** (internal) | Nearest-store distance, cannibalisation, network gap | Filtered to `zone == CHN` (11 stores). A committed snapshot is used when no token is configured. Coordinates are treated as authoritative: 2 stores' address pincodes disagree with where their coordinates fall (e.g. Thiruvanmiyur lists 600068 but sits in 600041). |
+| **Nominatim** (runtime) | Locality search | 1 req/s, identifying User-Agent, results cached. |
+| **MOCK rent bands** | Rent sanity check in property evaluation | No public commercial-rent source exists. Generated per pincode from distance to the central retail belt. `is_mock = true` in the DB and **shown with a MOCK badge in the UI**. |
+
+**Precomputed H3 grid:** every H3 res-9 cell (~0.1 km²) in the CMA stores population, buildings, footfall points, competitors by tier, road length and distance to the nearest Savomart store. Each cell also stores a *neighbourhood* view (the cell plus 2 rings, ~2 km², about the size of a locality) whose densities form the city-wide percentile tables used by scoring.
 
 ---
 
