@@ -1,8 +1,10 @@
-import type { ReactNode } from "react";
+import { forwardRef, type ReactNode } from "react";
 import Map, {
   AttributionControl,
   NavigationControl,
   ScaleControl,
+  type MapProps,
+  type MapRef,
   type ViewState,
 } from "react-map-gl/maplibre";
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -22,15 +24,21 @@ const CMA_BOUNDS: [[number, number], [number, number]] = [
   [80.5, 13.5],
 ];
 
-export function MapView({ children }: { children?: ReactNode }) {
+type Props = Partial<Pick<MapProps, "onClick" | "interactiveLayerIds" | "cursor" | "initialViewState" | "onLoad">> & {
+  children?: ReactNode;
+};
+
+export const MapView = forwardRef<MapRef, Props>(function MapView({ children, ...rest }, ref) {
   return (
     <Map
+      ref={ref}
       initialViewState={CHENNAI_VIEW}
       mapStyle={BASEMAP_STYLE}
       maxBounds={CMA_BOUNDS}
       minZoom={9}
       style={{ width: "100%", height: "100%" }}
       attributionControl={false}
+      {...rest}
     >
       <NavigationControl position="top-right" showCompass={false} />
       <AttributionControl position="bottom-right" compact />
@@ -38,4 +46,4 @@ export function MapView({ children }: { children?: ReactNode }) {
       {children}
     </Map>
   );
-}
+});

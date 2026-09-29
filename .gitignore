@@ -29,3 +29,4 @@ Thumbs.db
 
 # Hackathon brief (not ours to redistribute)
 Savomart_FullStack_Hackathon_Task.pdf
+*.tsbuildinfo

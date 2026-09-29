@@ -4,14 +4,16 @@ import type { Role } from "@/api/types";
 import { HOME } from "@/app/nav";
 import { AppShell } from "@/components/AppShell";
 import { LoginPage } from "@/routes/auth/LoginPage";
+import { ComparePage } from "@/routes/bdm/ComparePage";
 import { ExplorePage } from "@/routes/bdm/ExplorePage";
+import { ReportPage } from "@/routes/bdm/ReportPage";
+import { ReportsPage } from "@/routes/bdm/ReportsPage";
 import {
   AddPropertyPage,
   BdePropertiesPage,
   BdeTasksPage,
   BdmStudiesPage,
   PipelinePage,
-  ReportsPage,
   SeAssignmentsPage,
   SmInboxPage,
   SmStudiesPage,
@@ -62,6 +64,8 @@ export const router = createBrowserRouter([
       section("BDM", [
         { path: "explore", element: <ExplorePage /> },
         { path: "reports", element: <ReportsPage /> },
+        { path: "reports/:id", element: <ReportPage /> },
+        { path: "compare", element: <ComparePage /> },
         { path: "pipeline", element: <PipelinePage /> },
         { path: "studies", element: <BdmStudiesPage /> },
       ]),

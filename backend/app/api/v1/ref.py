@@ -92,6 +92,29 @@ def wards_geojson(db: Session = Depends(get_db), _: User = Depends(get_current_u
     return feature_collection(rows)
 
 
+class OpportunityCell(BaseModel):
+    h3: str
+    score: float
+    pop: float
+    nearest_store_km: float
+
+
+@router.get("/opportunity", response_model=list[OpportunityCell])
+def opportunity(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+    """City-wide opportunity surface at H3 res 8 (~0.7 km2): population-weighted mean of the
+    res-9 neighbourhood scores. Same model as the Area Fitness Report."""
+    rows = db.execute(text("""
+        SELECT h3_r8 AS h3,
+               round((sum(opportunity * greatest(pop_est, 1)) / sum(greatest(pop_est, 1)))::numeric, 1)::float AS score,
+               round(sum(pop_est))::float AS pop,
+               round((min(nearest_store_m) / 1000)::numeric, 2)::float AS nearest_store_km
+          FROM ref.h3_cell
+         WHERE opportunity IS NOT NULL
+         GROUP BY h3_r8
+    """))
+    return [OpportunityCell(**r._mapping) for r in rows]
+
+
 @router.get("/region")
 def region(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     """The CMA outline, for masking and the map's max bounds."""

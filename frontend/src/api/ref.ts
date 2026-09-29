@@ -26,6 +26,22 @@ export function useStores() {
   });
 }
 
+export interface OpportunityCell {
+  h3: string;
+  score: number;
+  pop: number;
+  nearest_store_km: number;
+}
+
+export function useOpportunity(enabled: boolean) {
+  return useQuery({
+    queryKey: ["ref", "opportunity"],
+    queryFn: () => api<OpportunityCell[]>("/ref/opportunity"),
+    enabled,
+    ...forever,
+  });
+}
+
 export function usePincodeLayer() {
   return useQuery({
     queryKey: ["ref", "pincodes.geojson"],

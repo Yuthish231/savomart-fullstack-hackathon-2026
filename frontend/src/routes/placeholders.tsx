@@ -1,14 +1,5 @@
 import { Placeholder } from "@/components/Placeholder";
 
-export const ReportsPage = () => (
-  <Placeholder
-    title="Area reports"
-    subtitle="Saved Area Fitness Reports, timestamped with the data they used"
-    milestone="M1"
-    body="Reports you run from Explore will be listed here, ready to revisit and compare side by side."
-  />
-);
-
 export const PipelinePage = () => (
   <Placeholder
     title="Property pipeline"
