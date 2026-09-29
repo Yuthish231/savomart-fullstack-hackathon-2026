@@ -74,10 +74,13 @@ npm run dev
 
 Frontend runs at `http://localhost:5173` (it proxies `/api` to the backend).
 
-### 4. Data ingestion (if not bundled with seed data)
+### 4. Data ingestion (once, about 15 minutes)
 
 ```bash
-[script to fetch/process OSM, Census, pincode data, etc.]
+cd backend
+python -m ingest.fetch_osm      # Overpass downloads, cached in data/raw/osm
+python -m ingest.run_all        # load + clean + precompute (about 90 s, re-runnable)
+python -m ingest.verify         # data-quality report; should end with "all checks passed"
 ```
 
 > Large raw datasets are fetched by script, not committed. See [Data Sources & Processing](#data-sources--processing).
@@ -156,7 +159,7 @@ python -m ingest.run_all     # boundaries → pincodes → stores → OSM → po
 | **OpenStreetMap via Overpass API** (ODbL) | POIs (shops, schools, hospitals, transit, offices, worship, parks), ~380k buildings, road network | Tiled queries over the CMA bbox with on-disk cache, mirror fallback and adaptive tile splitting when servers time out. De-duplicated across tiles and between node/way mappings of the same place (same name ≤ 30 m). Clipped to the CMA polygon. POIs classified by [`ingest/categories.py`](backend/ingest/categories.py) into footfall weights and grocery competitor tiers (organised chain / supermarket / kirana), including brand-name regexes that tolerate misspellings. Roads split at every intersection and into ≤ 250 m **lane segments** with stable ids (`<way>:<seq>`) for survey work and reuse. |
 | **DataMeet Municipal Spatial Data** (CC BY 4.0) | CMA boundary (1,188 km²), 200 GCC ward polygons | The 107 wards in zones IV, V, VI, VIII, IX, X, XIII form the pre-2011 city (172.7 km², which matches the historic 174 km²), used as the footprint of Census 2011 "Chennai (M Corp.)". |
 | **All India Pincode Boundary** (data.gov.in / India Post; OGD licence) | Pincode selection, labels, rent bands | Read from the GeoParquet mirror in [`yashveeeeeeer/india-geodata`](https://github.com/yashveeeeeeer/india-geodata). Multi-part pincodes unioned, kept if ≥ 5% inside the CMA (124 pincodes). |
-| **Census of India 2011** | Population baseline | Control totals: Chennai (M Corp.) 4,646,732 and Chennai UA 8,653,521. **Dasymetric allocation:** each zone's population is spread over OSM buildings by residential weight (floors × residential likelihood). This is a 2011 baseline, so scores use city-relative percentiles and M3 lane surveys override it. |
+| **Census of India 2011** | Population baseline | Control totals: Chennai (M Corp.) 4,646,732 and Chennai UA 8,653,521. **Dasymetric allocation:** each zone's population is spread over OSM buildings by residential weight (residential likelihood; apartments ×4; generic buildings on industrial, port, rail, campus or commercial land down-weighted), then capped at 60,000 people/km² per hex with the excess redistributed within the zone. Floor counts are *not* used: only 1.8% of Chennai buildings carry them, a third of those in one zone, which had pushed George Town to an implausible 627k residents. **Check:** the population allocated to the 200 GCC wards (6.85M) lands within ~2% of the independent GCC 2011 figure. This is a 2011 baseline, so scores use city-relative percentiles and M3 lane surveys override it. |
 | **Savomart Stores API** (internal) | Nearest-store distance, cannibalisation, network gap | Filtered to `zone == CHN` (11 stores). A committed snapshot is used when no token is configured. Coordinates are treated as authoritative: 2 stores' address pincodes disagree with where their coordinates fall (e.g. Thiruvanmiyur lists 600068 but sits in 600041). |
 | **Nominatim** (runtime) | Locality search | 1 req/s, identifying User-Agent, results cached. |
 | **MOCK rent bands** | Rent sanity check in property evaluation | No public commercial-rent source exists. Generated per pincode from distance to the central retail belt. `is_mock = true` in the DB and **shown with a MOCK badge in the UI**. |
