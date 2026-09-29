@@ -29,6 +29,11 @@ VISIBILITY = {"main_road": "Faces a main road", "side_street": "On a side street
 PROPERTY_TYPES = {"shop": "Shop", "showroom": "Showroom", "standalone": "Standalone building",
                   "mall_unit": "Mall unit", "other": "Other"}
 
+# Data-quality flags that must be resolved before a property can be "proceed".
+FLAG_SEVERITY = {"PIN_GPS_MISMATCH": "high", "DUPLICATE_SUSPECTED": "high", "DUPLICATE_DISMISSED": "low",
+                 "GPS_WEAK": "low", "NO_GPS": "low"}
+FLAGS_COVERED_BY_CHECKS = {"RENT_MISSING"}  # already reported by the rent check
+
 
 @dataclass
 class Check:
@@ -272,7 +277,11 @@ def assess(db: Session, details: dict[str, Any], ctx: dict[str, Any], flags: lis
                          "(OSM may miss kiranas; confirm on the visit)", "fact_ids": ["competitors_500m"]})
 
     for f in flags:
-        risks.append({"code": f["code"], "severity": f.get("severity", "medium"), "text": f["message"], "fact_ids": []})
+        if f["code"] in FLAGS_COVERED_BY_CHECKS:
+            continue
+        # Severity comes from current policy, not what was stored at capture time.
+        sev = FLAG_SEVERITY.get(f["code"], f.get("severity", "medium"))
+        risks.append({"code": f["code"], "severity": sev, "text": f["message"], "fact_ids": []})
 
     high = sum(1 for r in risks if r["severity"] == "high")
     rec = recommend(total, blockers, high)

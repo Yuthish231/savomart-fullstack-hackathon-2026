@@ -1,9 +1,11 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import type { FeatureCollection } from "geojson";
 import { Layer, Marker, Source } from "react-map-gl/maplibre";
-import { ArrowLeft, Bot, Database, FileText, RotateCcw, Store, TrainFront } from "lucide-react";
-import { isTerminal, useReport, useRetryReport, type Report } from "@/api/areas";
+import { ArrowLeft, Bot, Database, FileText, RotateCcw, Send, Store, TrainFront, UserCheck } from "lucide-react";
+import { isTerminal, useReport, useRetryReport, type Hotspot, type Report } from "@/api/areas";
+import { useTasks } from "@/api/properties";
+import { AssignTask } from "@/components/AssignTask";
 import { MapView } from "@/map/MapView";
 import { BRAND, StoresLayer } from "@/map/layers";
 import { Badge, Button, Card, ErrorNote, Spinner } from "@/components/ui";
@@ -29,6 +31,8 @@ export function ReportPage() {
   const { id } = useParams();
   const { data: r, error, isLoading } = useReport(id);
   const retry = useRetryReport(id!);
+  const tasks = useTasks(id);
+  const [assigning, setAssigning] = useState<Hotspot | null | undefined>(undefined);
 
   const areaFc = useMemo<FeatureCollection | null>(
     () => (r ? { type: "FeatureCollection", features: [{ type: "Feature", geometry: r.area_geometry, properties: {} }] } : null),
@@ -239,19 +243,34 @@ export function ReportPage() {
                       <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-savo-yellow text-xs font-bold text-savo-purple ring-2 ring-savo-purple">
                         {h.rank}
                       </span>
-                      <span>
+                      <span className="min-w-0 flex-1">
                         <span className="font-medium">{h.near_road ?? "Unnamed streets"}</span>{" "}
                         <span className="text-slate-500">· score {Math.round(h.score)} · {h.nearest_store_km} km to Savomart</span>
                         <span className="block text-xs text-slate-500">Strong on {h.strengths.map((s) => s.label.toLowerCase()).join(" and ")}</span>
+                        {tasks.data?.filter((t) => t.hotspot_id === h.id).map((t) => (
+                          <span key={t.id} className="mt-0.5 flex items-center gap-1 text-xs text-emerald-700">
+                            <UserCheck className="h-3 w-3" /> {t.assignee.name} · {t.status.replace("_", " ")}
+                            {t.properties_found > 0 && ` · ${t.properties_found} found`}
+                          </span>
+                        ))}
                       </span>
+                      <button onClick={() => setAssigning(h)} className="shrink-0 self-start rounded-md px-2 py-1 text-xs font-semibold text-savo-purple hover:bg-savo-purple-light">
+                        <Send className="inline h-3 w-3" /> Assign
+                      </button>
                     </li>
                   ))}
                 </ol>
               </div>
             )}
           </Card>
+          {r.status !== "failed" && r.hotspots && (
+            <Button variant="secondary" className="mt-3 w-full" onClick={() => setAssigning(null)}>
+              <Send className="h-4 w-4" /> Send an executive to scout this area
+            </Button>
+          )}
         </div>
       </div>
+      {assigning !== undefined && <AssignTask reportId={r.id} hotspot={assigning} onClose={() => setAssigning(undefined)} />}
     </div>
   );
 }

@@ -7,13 +7,14 @@ import { LoginPage } from "@/routes/auth/LoginPage";
 import { ComparePage } from "@/routes/bdm/ComparePage";
 import { ExplorePage } from "@/routes/bdm/ExplorePage";
 import { ReportPage } from "@/routes/bdm/ReportPage";
+import { PipelinePage } from "@/routes/bdm/PipelinePage";
 import { ReportsPage } from "@/routes/bdm/ReportsPage";
+import { MyPropertiesPage } from "@/routes/bde/MyPropertiesPage";
+import { PropertyWizard } from "@/routes/bde/PropertyWizard";
+import { TasksPage } from "@/routes/bde/TasksPage";
+import { PropertyPage } from "@/routes/shared/PropertyPage";
 import {
-  AddPropertyPage,
-  BdePropertiesPage,
-  BdeTasksPage,
   BdmStudiesPage,
-  PipelinePage,
   SeAssignmentsPage,
   SmInboxPage,
   SmStudiesPage,
@@ -67,12 +68,15 @@ export const router = createBrowserRouter([
         { path: "reports/:id", element: <ReportPage /> },
         { path: "compare", element: <ComparePage /> },
         { path: "pipeline", element: <PipelinePage /> },
+        { path: "properties/:id", element: <PropertyPage /> },
         { path: "studies", element: <BdmStudiesPage /> },
       ]),
       section("BDE", [
-        { path: "tasks", element: <BdeTasksPage /> },
-        { path: "new", element: <AddPropertyPage /> },
-        { path: "properties", element: <BdePropertiesPage /> },
+        { path: "tasks", element: <TasksPage /> },
+        { path: "new", element: <PropertyWizard key="new" /> },
+        { path: "edit/:id", element: <PropertyWizard key="edit" /> },
+        { path: "properties", element: <MyPropertiesPage /> },
+        { path: "properties/:id", element: <PropertyPage /> },
       ]),
       section("SM", [
         { path: "inbox", element: <SmInboxPage /> },

@@ -216,7 +216,9 @@ _Property evaluation (M2) and catchment roll-ups (M3) reuse the same fact-table 
 
 _[The open-ended calls the brief left to you — be explicit about why, not just what:]_
 
-- **Pipeline stages (M2):** [what stages you chose and why]
+- **Pipeline stages (M2):** Sighted → Evaluated → Shortlisted → Site visit → Negotiation → Catchment study → Final review → Approved, plus On hold / Rejected from any active stage. This mirrors how a BD team actually moves a site: desk evaluation before anyone travels, a physical visit before money is discussed, and the catchment study only once terms look viable (surveys cost field time). Transitions are a declarative table ([`services/pipeline.py`](backend/app/services/pipeline.py)) with role guards. Reject, hold and "skip study" require a reason. Executives can only report their own site visit. Every move writes an insert-only `pipeline_event` in the same transaction as the stage change.
+- **Property evaluation (M2):** 60% location (the M1 model on ~1 km around the pin) + 40% site checks (size vs the 1,500–4,000 sq ft target, floor, frontage, delivery access, visibility, parking, rent vs the MOCK local band). Blockers force "reject" (under 800 sq ft, no vehicle access, under 0.8 km from an existing Savomart store). Unresolved data-quality flags (pin more than 150 m from the phone's GPS, suspected duplicate) keep it at "review". Every edit or re-run creates a new evaluation version, and the change is shown.
+- **Bad field input (M2):** the wizard pre-checks the pin (inside the CMA, pincode, rent band, look-alikes within 50 m by distance + trigram name similarity) *before* submit. Missing rent is allowed and marked "incomplete" rather than blocking. Drafts persist on the phone across reloads and dropped networks. Photos are compressed on-device, then type- and magic-byte-checked on the server.
 - **Catchment splitting (M3):** [how you split work into fair, non-overlapping chunks]
 - **Reuse threshold (M3):** [what "close enough and fresh enough" means in your implementation]
 - **Offline/weak-network handling (M3):** [what happens to a half-filled survey]
@@ -249,10 +251,10 @@ Full AI chat sessions / history: see [`/ai-sessions`](./ai-sessions) or [TODO �
 
 ## Milestone Status
 
-- [ ] **M1 — Area Intelligence:** map selection (pincode / locality / grid cells), Area Fitness Report, save/compare/timestamp
-- [ ] **M2 — Property Scouting:** mobile onboarding, auto-evaluation, pipeline with audit trail
+- [x] **M1 — Area Intelligence:** map selection (pincode / locality / grid cells), Area Fitness Report, save/compare/timestamp
+- [x] **M2 — Property Scouting:** hotspot → scouting task, mobile onboarding wizard, auto-evaluation (versioned), pipeline with audit trail
 - [ ] **M3 — Catchment Study:** request → split → assign → lane capture → roll-up, reuse logic
-- [ ] Bonus: _[which one(s), if any]_
+- [x] Bonus: **city-wide opportunity map** (every ~0.7 km² hex scored with the same model)
 
 ---
 
