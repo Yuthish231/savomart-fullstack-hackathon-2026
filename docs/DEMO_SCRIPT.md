@@ -5,6 +5,7 @@ A recording guide for the 3–5 minute walkthrough the brief asks for: the core 
 - **Section 1:** get the app into a known state before recording.
 - **Section 2:** the scene-by-scene script, with what to click and what to say.
 - **Section 4:** the longer feature tour, only for an optional extended cut.
+- **Form values:** what to type into every form is in [DEMO_FORM_VALUES.md](DEMO_FORM_VALUES.md).
 
 ---
 
