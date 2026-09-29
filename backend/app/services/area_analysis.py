@@ -22,6 +22,34 @@ def _ring(cells: list[str], k: int) -> list[str]:
     return list(ring - set(cells))
 
 
+def cell_model_metrics(db: Session, cells: list[str], ring: list[str]) -> dict[str, float]:
+    """Scoring-model inputs (same definitions as the city percentile tables) for a set of
+    res-9 cells plus a competition ring. Shared by area reports and property evaluations."""
+    a = db.execute(text("""
+        SELECT sum(area_km2) AS area_km2, coalesce(sum(pop_est), 0) AS pop,
+               coalesce(sum(res_bldg_count), 0) AS res, coalesce(sum(footfall_pts), 0) AS foot,
+               coalesce(sum(comp_convenience + 2 * comp_supermarket + 3 * comp_organised), 0) AS comp_w,
+               coalesce(sum(road_major_m), 0) AS major, coalesce(sum(road_minor_m), 0) AS minor
+          FROM ref.h3_cell WHERE h3 = ANY(:cells)
+    """), {"cells": cells}).one()
+    r = db.execute(text("""
+        SELECT coalesce(sum(pop_est), 0) AS pop,
+               coalesce(sum(comp_convenience + 2 * comp_supermarket + 3 * comp_organised), 0) AS comp_w
+          FROM ref.h3_cell WHERE h3 = ANY(:ring)
+    """), {"ring": ring}).one()
+    area = float(a.area_km2 or 0) or 0.001
+    return {
+        "area_km2": round(area, 3),
+        "population": round(float(a.pop)),
+        "pop_density": round(float(a.pop) / area, 1),
+        "res_density": round(float(a.res) / area, 1),
+        "footfall_density": round(float(a.foot) / area, 2),
+        "comp_per_10k": round((float(a.comp_w) + float(r.comp_w)) / max(float(a.pop) + float(r.pop), 2000.0)
+                              * 10_000, 2),
+        "access_density": round((float(a.major) + 0.5 * float(a.minor)) / 1000 / area, 2),
+    }
+
+
 def aggregate(db: Session, area_id, cells: list[str]) -> dict[str, Any]:
     q = lambda sql, **kw: db.execute(text(sql), kw)  # noqa: E731
     a = q("""
