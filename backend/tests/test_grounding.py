@@ -48,3 +48,10 @@ def test_small_counts_and_ids_are_not_data_claims():
     o = out(summary="Three strengths and 2 risks; see the top 3 hotspots.",
             scout_first=[{"hotspot_id": "h2", "text": "Second pick"}])
     assert check(o, FACTS, HOTSPOTS).ok
+
+
+def test_numbers_from_labels_and_names_are_context_not_claims():
+    facts = {**FACTS, "ring": {"label": "Competitors in the ~500 m ring", "value": 8, "unit": "shops"}}
+    o = out(summary="600042 · Velacheri has 8 shops in the 500 m ring.")
+    assert check(o, facts, HOTSPOTS, context_texts=["600042 · Velacheri"]).ok
+    assert not check(o, facts, HOTSPOTS).ok  # without the name, the pincode is an unsupported number

@@ -24,6 +24,11 @@ class Settings(BaseSettings):
     llm_model: str = "openai/gpt-oss-120b"
     llm_api_key: str = ""
     llm_timeout_s: float = 30.0
+    llm_max_tokens: int = 1500
+    # gpt-oss models accept low|medium|high; "low" keeps hidden reasoning tokens (and TPM usage) down.
+    # Leave empty for providers/models that don't support the parameter.
+    llm_reasoning_effort: str = "low"
+    llm_rate_limit_wait_s: float = 90.0
 
     stores_api_url: str = (
         "https://internal-service.savomart.in/bridge/api/store/list?is_operational=True"

@@ -1,6 +1,5 @@
 """Area Fitness Report job: aggregate → score + hotspots → grounded narrative."""
 
-import json
 import uuid
 from datetime import UTC, datetime
 
@@ -9,7 +8,7 @@ from sqlalchemy import text
 from app.jobs.queue import JobContext
 from app.jobs.registry import task
 from app.llm import grounding
-from app.llm.provider import LLMUnavailable, get_llm
+from app.llm.provider import LLMUnavailable, compact_facts, get_llm
 from app.models import Area, AreaReport
 from app.services import area_analysis as aa
 from app.services.scoring import SCORING_VERSION, grade, score_metrics, subs_as_dicts
@@ -77,17 +76,17 @@ def run(ctx: JobContext) -> None:
         r = _report(ctx)
         llm = get_llm()
         hotspot_ids = {h["id"] for h in r.hotspots or []}
-        user = json.dumps({
-            "area": area.name,
-            "facts": r.facts,
-            "hotspots": [{k: h[k] for k in ("id", "rank", "score", "near_road", "nearest_store_km", "strengths")}
-                         for h in r.hotspots or []],
-            "confidence_notes": r.confidence_reasons,
-        }, ensure_ascii=False)
+        hotspots = "\n".join(
+            f"{h['id']}: rank {h['rank']}, score {h['score']}, near {h['near_road'] or 'unnamed streets'}, "
+            f"{h['nearest_store_km']} km to Savomart, strong on {', '.join(s['label'] for s in h['strengths'])}"
+            for h in r.hotspots or [])
+        user = (f"Area: {area.name}\n\nFacts (id: label = value unit):\n{compact_facts(r.facts)}"
+                f"\n\nHotspots:\n{hotspots}\n\nConfidence notes: {' '.join(r.confidence_reasons or [])}")
         prompt, last_violations = user, []
         for _ in range(2):  # one retry with the violations spelled out
             out = llm.complete_json(SYSTEM_PROMPT, prompt)
-            result = grounding.check(out, r.facts, hotspot_ids)
+            result = grounding.check(out, r.facts, hotspot_ids,
+                                     context_texts=[area.name, *(h.get("near_road") or "" for h in r.hotspots or [])])
             if result.ok:
                 r.narrative, r.narrative_source, r.llm_model = out, "llm", llm.model
                 ctx.db.commit()

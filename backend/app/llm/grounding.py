@@ -64,9 +64,19 @@ def _texts(obj: Any) -> list[str]:
     return []
 
 
+def _numbers_in(text: str) -> list[float]:
+    return [float(m.group(1).replace(",", "")) for m in _NUM.finditer(text or "")]
+
+
 def check(output: dict[str, Any], facts: dict[str, dict[str, Any]], hotspot_ids: set[str],
-          extra_allowed: set[float] | None = None) -> GroundingResult:
+          extra_allowed: set[float] | None = None, context_texts: list[str] | None = None) -> GroundingResult:
+    """context_texts: names the model may legitimately repeat (area name with its pincode, etc.)."""
     allowed: list[float] = [*ALWAYS_ALLOWED, *(extra_allowed or set())]
+    # Numbers that are part of a fact's own label ("the ~500 m ring") or of names we supplied.
+    for f in facts.values():
+        allowed += _numbers_in(str(f.get("label", "")))
+    for t in context_texts or []:
+        allowed += _numbers_in(t)
     for f in facts.values():
         v = f.get("value")
         if isinstance(v, (int, float)) and not isinstance(v, bool):

@@ -1,6 +1,5 @@
 """Property evaluation job: context around the pin → site assessment → grounded narrative."""
 
-import json
 import uuid
 from datetime import UTC, datetime
 
@@ -10,7 +9,7 @@ from shapely import wkb
 from app.jobs.queue import JobContext
 from app.jobs.registry import task
 from app.llm import grounding
-from app.llm.provider import LLMUnavailable, get_llm
+from app.llm.provider import LLMUnavailable, compact_facts, get_llm
 from app.models import CatchmentStudy, Property, PropertyEvaluation
 from app.services import evaluation as ev_svc
 from app.services import pipeline, rollup
@@ -72,13 +71,14 @@ def run(ctx: JobContext) -> None:
     def narrative() -> None:
         e = _ev(ctx)
         llm = get_llm()
-        user = json.dumps({"property": prop.name, "recommendation": e.recommendation, "facts": e.facts,
-                           "insights": [i["text"] for i in e.insights or []],
-                           "risks": [r["text"] for r in e.risks or []]}, ensure_ascii=False)
+        user = (f"Property: {prop.name}\nRecommendation: {e.recommendation}\n\n"
+                f"Facts (id: label = value unit):\n{compact_facts(e.facts)}\n\n"
+                "Insights:\n" + "\n".join(f"- {i['text']}" for i in e.insights or []) + "\n\n"
+                "Risks:\n" + "\n".join(f"- {r['text']}" for r in e.risks or []))
         prompt, violations = user, []
         for _ in range(2):
             out = llm.complete_json(SYSTEM_PROMPT, prompt)
-            res = grounding.check(out, e.facts, set())
+            res = grounding.check(out, e.facts, set(), context_texts=[prop.name, prop.code])
             if res.ok:
                 e.narrative, e.narrative_source, e.llm_model = out, "llm", llm.model
                 ctx.db.commit()

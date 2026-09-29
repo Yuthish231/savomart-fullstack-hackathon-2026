@@ -1,13 +1,12 @@
 """Catchment study roll-up: lane surveys → insight → property re-evaluation / area update."""
 
-import json
 import uuid
 from datetime import UTC, datetime
 
 from app.jobs.queue import JobContext
 from app.jobs.registry import task
 from app.llm import grounding
-from app.llm.provider import LLMUnavailable, get_llm
+from app.llm.provider import LLMUnavailable, compact_facts, get_llm
 from app.models import CatchmentStudy, Property
 from app.services import pipeline, rollup
 from app.services import properties as prop_svc
@@ -35,11 +34,11 @@ def run(ctx: JobContext) -> None:
         s = _study(ctx)
         facts = rollup.build_facts(s, s.insight)
         llm = get_llm()
-        user = json.dumps({"study": s.code, "facts": facts}, ensure_ascii=False)
+        user = f"Study: {s.code}\n\nFacts (id: label = value unit):\n{compact_facts(facts)}"
         prompt = user
         for _ in range(2):
             out = llm.complete_json(SYSTEM_PROMPT, prompt)
-            res = grounding.check(out, facts, set())
+            res = grounding.check(out, facts, set(), context_texts=[s.code])
             if res.ok:
                 s.insight_narrative = out | {"source": "llm", "model": llm.model}
                 ctx.db.commit()

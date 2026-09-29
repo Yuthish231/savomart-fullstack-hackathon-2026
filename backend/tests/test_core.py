@@ -41,3 +41,25 @@ def test_parse_json_object_rejects(raw):
 def test_null_provider_signals_unavailable():
     with pytest.raises(LLMUnavailable):
         NullProvider().complete_json("sys", "user")
+
+
+class _Resp:
+    def __init__(self, headers):
+        self.headers = headers
+
+
+class _RateLimited(Exception):
+    def __init__(self, headers):
+        self.response = _Resp(headers)
+
+
+@pytest.mark.parametrize("headers,expected", [
+    ({"retry-after": "7"}, 7.0),
+    ({"x-ratelimit-reset-tokens": "7.66s"}, 8.16),
+    ({"x-ratelimit-reset-tokens": "720ms"}, 1.22),
+    ({"x-ratelimit-reset-tokens": "1m2s"}, 62.5),
+    ({}, 5.0),
+])
+def test_rate_limit_wait_follows_provider_headers(headers, expected):
+    from app.llm.provider import _retry_after_s
+    assert _retry_after_s(_RateLimited(headers)) == pytest.approx(expected)
