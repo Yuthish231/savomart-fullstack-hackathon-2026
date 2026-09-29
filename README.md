@@ -1,15 +1,31 @@
-# Savo SiteScout — Savomart Expansion Intelligence Platform
+# Savo SiteScout: Savomart Expansion Intelligence Platform
 
-_One-line pitch: [e.g. "Turns Chennai's public data into a ranked, explainable map of where Savomart should open next, and carries every property from first sighting to catchment sign-off."]_
+**Turns Chennai's public data into a ranked, explainable map of where Savomart should open next, then carries every property from first sighting to a ground-surveyed catchment sign-off.**
 
 Built for the Savomart Full Stack Engineer 48-hour hackathon (28–30 Sep 2026).
 
 ---
 
+## What it does
+
+Today a new store starts with BD executives driving around looking for vacant shops. SiteScout flips that around: the data points the team at the right areas first, and one shared workflow takes a site from "which area?" to "which property?" to "is the catchment right?". It is built for four personas, and each one gets a view shaped around their job.
+
+| Milestone | Who | What they can do |
+| --- | --- | --- |
+| **M1 Area Intelligence** | BD Manager | Pick any part of Chennai by pincode, locality or map grid cells and get an **Area Fitness Report**: a grade, six explainable sub-scores (demand, homes, footfall, competition, Savomart network fit, access), "scout here first" hotspots, and a summary that can only use numbers from the data. Reports are timestamped and can be compared. A **city-wide opportunity heatmap** shows the strongest pockets. |
+| **M2 Property Scouting** | BD Manager, BD Executive | Assign hotspots to executives, who onboard properties from their phone (pin, details, photos). Each property is **automatically evaluated** (60% location from public data, 40% site checks) with insights, risks and a proceed / review / reject recommendation. Wrong pins, missing rent and likely duplicates are flagged. The manager moves properties through a pipeline with a full audit trail. |
+| **M3 Catchment Study** | BD Manager, Survey Manager, Survey Executive | Request a lane-by-lane ground survey for a property or an area. The system **reuses recent surveys** of the same lanes, splits the rest into fair, connected chunks of walking, and lets surveyors capture lanes on their phone with **offline drafts that sync later**. Results roll up into catchment insights and automatically re-evaluate the property. |
+
+**Built on real Chennai data:** OpenStreetMap (about 376k buildings, 11.7k points of interest, 208k street segments), India Post pincode boundaries (data.gov.in), Census 2011 population, DataMeet ward boundaries and the live Savomart stores list. Commercial rents have no public source, so they are **mock data and labelled MOCK** everywhere they appear.
+
+**Stack:** FastAPI + PostgreSQL/PostGIS (Docker) · React + TypeScript + MapLibre · H3 hexagon grid · a Postgres-backed job queue · Groq `openai/gpt-oss-120b` behind a swappable, OpenAI-compatible adapter.
+
+---
+
 ## Contents
 
+- [How to Run](#how-to-run)
 - [Demo](#demo)
-- [Quick Start](#quick-start)
 - [Demo Credentials](#demo-credentials)
 - [Architecture Overview](#architecture-overview)
 - [Data Model & Schema](#data-model--schema)
@@ -23,82 +39,86 @@ Built for the Savomart Full Stack Engineer 48-hour hackathon (28–30 Sep 2026).
 
 ---
 
-## Demo
-
-- **Video walkthrough (3–5 min):** [TODO — Google Drive link, "Anyone with the link can view"]
-- **Live deployment (optional bonus):** [TODO — URL, or "Not deployed; run locally, see Quick Start"]
-
----
-
-## Quick Start
+## How to Run
 
 ### Prerequisites
 
-- Python 3.12
-- Node.js 20
-- Docker (for PostgreSQL 16 + PostGIS 3.4; exposed on port **5433** so it won't clash with a local Postgres)
-- Optional: a Groq API key (free at console.groq.com). Without it, the app runs with template narratives.
+- **Python 3.12**, **Node.js 20**, **Docker Desktop**
+- Optional: a **Groq API key** (free at [console.groq.com](https://console.groq.com)). Without one, everything works and summaries are rule-based instead of AI-written.
 
-### 1. Clone and configure
+> Commands use Windows paths (`.venv/Scripts/python`). On macOS/Linux use `.venv/bin/python`.
+
+### First-time setup (about 20 minutes, mostly the one-off data download)
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/Yuthish231/savomart-fullstack-hackathon-2026.git
 cd savomart-fullstack-hackathon-2026
-cp .env.example .env   # add LLM_API_KEY (and STORES_API_TOKEN for ingestion)
-docker compose up -d db
-```
+cp .env.example .env              # optional: put your Groq key in LLM_API_KEY
+docker compose up -d db           # PostgreSQL 16 + PostGIS on port 5433
 
-### 2. Backend (API + worker)
-
-```bash
 cd backend
 python -m venv .venv
-.venv/Scripts/activate          # Windows; use `source .venv/bin/activate` on macOS/Linux
-pip install -r requirements.txt
-alembic upgrade head
-python -m scripts.seed          # demo personas
-uvicorn app.main:app --port 8000 --reload
-# in a second terminal (same venv):
-python -m app.jobs.worker       # processes reports, evaluations, study jobs
-```
+.venv/Scripts/python -m pip install -r requirements.txt
+.venv/Scripts/python -m alembic upgrade head          # create the schema
+.venv/Scripts/python -m scripts.seed                  # demo users (4 personas)
 
-API runs at `http://localhost:8000` (interactive docs at `/docs`).
+.venv/Scripts/python -m ingest.fetch_osm              # download Chennai OSM data (about 15 min, cached)
+.venv/Scripts/python -m ingest.run_all                # load, clean, precompute (about 90 s)
+.venv/Scripts/python -m ingest.verify                 # should end with "all checks passed"
+.venv/Scripts/python -m scripts.demo_seed --reset     # demo story: reports, properties, studies
 
-### 3. Frontend
-
-```bash
-cd frontend
+cd ../frontend
 npm install
-npm run dev
 ```
 
-Frontend runs at `http://localhost:5173` (it proxies `/api` to the backend).
+### Start the app (every time)
 
-### 4. Data ingestion (once, about 15 minutes)
+The app needs four things running: the database, the API, the background worker and the web app. From the repo root, use one terminal per step:
 
 ```bash
-cd backend
-python -m ingest.fetch_osm      # Overpass downloads, cached in data/raw/osm
-python -m ingest.run_all        # load + clean + precompute (about 90 s, re-runnable)
-python -m ingest.verify         # data-quality report; should end with "all checks passed"
+docker compose up -d db                                                   # 1. database (skip if already running)
 ```
-
-### 5. Demo data (optional, about 1 minute)
 
 ```bash
-cd backend
-python -m scripts.demo_seed --reset   # wipes app data (keeps users + reference data), then builds the demo story
+cd backend && .venv/Scripts/python -m uvicorn app.main:app --port 8000    # 2. API
 ```
 
-This runs the real code paths in-process and creates:
-- 4 area reports (Velachery, Anna Nagar, Thiruvanmiyur, T. Nagar).
-- Scouting tasks, and 7 properties across the pipeline, including a likely duplicate, a cannibalisation reject and a great-location-but-poor-unit "review".
+```bash
+cd backend && .venv/Scripts/python -m app.jobs.worker                     # 3. worker: reports, evaluations, study roll-ups
+```
+
+```bash
+cd frontend && npm run dev                                                # 4. web app
+```
+
+Then open **http://localhost:5173** and click a persona to sign in (no password needed). API docs are at http://localhost:8000/docs.
+
+**Tips**
+- Without the worker running, reports and evaluations stay "queued".
+- On Windows, run uvicorn **without** `--reload`: the reloader can hang and keep port 8000 busy. Restart the API after backend changes.
+- To put the demo back to its starting state (e.g. before a walkthrough): `cd backend && .venv/Scripts/python -m scripts.demo_seed --reset`.
+- Tests: `cd backend && .venv/Scripts/python -m pytest -q`.
+
+### What the demo data contains
+
+`scripts.demo_seed` runs the real code paths in-process and creates:
+- 4 area reports: Velachery, Anna Nagar, Thiruvanmiyur, T. Nagar.
+- Scouting tasks, and 7 properties across the pipeline, including a likely duplicate, a reject for being too close to an existing store, and a "review" for a good area with a poor unit.
 - **CS-0001**, a completed catchment study.
-- **CS-0002**, an area study half-way through fieldwork.
+- **CS-0002**, an area study half-way through fieldwork, so the survey screens have work to show.
 
-CS-0001's lane surveys are **synthetic**: dwellings are derived from real OSM building density per lane, the other fields are random but plausible. They are flagged `is_seed`, and the UI says "Includes synthetic demo survey data". To see **reuse** live: as the BD Manager, open *Lakshmi Towers* (Negotiation, about 110 m from CS-0001's site) and choose *Request catchment study*.
+CS-0001's lane surveys are **synthetic**: homes per lane come from real OSM building density, the other fields are random but plausible. They are flagged `is_seed`, and the app says "Includes synthetic demo survey data".
+
+**To see survey reuse live:** as the BD Manager, open **Lakshmi Towers** (in Negotiation, about 110 m from CS-0001's site) and choose **Request catchment study**. Most of its lanes were already surveyed, so it completes in seconds without new fieldwork.
 
 > Large raw datasets are fetched by script, not committed. See [Data Sources & Processing](#data-sources--processing).
+
+---
+
+## Demo
+
+- **Video walkthrough (3–5 min):** [TODO — Google Drive link, "Anyone with the link can view"]
+- **Live deployment (optional bonus):** Not deployed; run locally, see [How to Run](#how-to-run).
 
 ---
 
