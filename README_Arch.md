@@ -167,14 +167,35 @@ python -m ingest.run_all     # boundaries → pincodes → stores → OSM → po
 
 ## Scoring & AI — How It Works, and Stays Grounded
 
-_[Explain the Area Fitness scoring model: which signals feed it, how they're weighted, what's rule-based vs LLM-generated.]_
+### Area Fitness model (`scoring_version = v1`, [`app/services/scoring.py`](backend/app/services/scoring.py))
 
-_[Explain how the property evaluation combines public + field data.]_
+**All scoring is deterministic, rule-based arithmetic.** The LLM never scores anything.
 
-**How we stop the AI from inventing numbers:**
-- [e.g. "The LLM only ever summarizes/reasons over numbers we've already computed and pass into its prompt — it never generates a data point itself."]
-- [e.g. "Every claim in a report links back to its source dataset and as-of date."]
-- [Any other grounding strategy: retrieval, structured prompts, validation checks, etc.]
+| Sub-score | Weight | Metric | How it becomes 0–100 |
+|---|:-:|---|---|
+| Demand | 25% | residents / km² | Chennai percentile |
+| Residential fabric | 15% | residential buildings / km² | Chennai percentile |
+| Footfall generators | 15% | weighted schools, hospitals, offices, transit, markets / km² | Chennai percentile |
+| Competition | 20% | grocery competitors per 10k residents (chain ×3, supermarket ×2, kirana ×1), area + ~500 m ring | 100 − Chennai percentile |
+| Savomart network fit | 15% | km to nearest Savomart store | distance band: < 2 km cannibalises, 3–8 km ideal, very far strains supply |
+| Access | 10% | road km / km² (arterials weighted double) | Chennai percentile |
+
+- **Percentiles are against every inhabited ~2 km² neighbourhood in the CMA**, precomputed at ingest. "Demand 82" literally means denser than 82% of Chennai. Ties use mid-rank, so sparse data isn't mistaken for a perfect score.
+- **Grade:** A ≥ 75, B ≥ 60, C ≥ 45, D below.
+- **Confidence (High / Medium / Low)** comes from data coverage: the share of street cells with mapped buildings, resident count, and whether any grocery shops are mapped. It is shown with its reasons.
+- **Hotspots:** the best-scoring res-9 cells inside the area, at least ~600 m apart, each with its nearest named road and its two strongest signals.
+- **The city-wide opportunity heatmap** uses the *same function* on every cell's neighbourhood, so the map and the reports can never disagree.
+- **Explainability:** every sub-score card shows raw value → Chennai percentile → weight → points contributed, plus a plain-English definition.
+
+### How we stop the AI from inventing numbers ([`app/llm/grounding.py`](backend/app/llm/grounding.py))
+
+1. **The LLM only receives a fact table** (id, label, value, unit, source) built from the computed report, plus the hotspot list. It is told to use only those values and to cite fact ids for every reason and risk.
+2. **A validator checks every number in the output** against the fact values. It allows legitimate display forms (48,213 → "48.2k" / "0.48 lakh", 0.42 → "42%", 1,250 m → "1.3 km") within rounding tolerance. It also rejects unknown fact ids and hotspot ids.
+3. **On a violation, one retry** tells the model exactly which numbers were not allowed. If it still fails, or the LLM is down or unconfigured, the report keeps its **deterministic template narrative** and is marked `partial` with a visible "Rule-based summary" badge.
+4. **The UI shows the provenance.** Fact citations are hoverable chips (value, unit, source), and every report lists the datasets it used with as-of dates and MOCK flags.
+5. **Provider-agnostic:** Groq `openai/gpt-oss-120b` by default through an OpenAI-compatible adapter (`LLM_BASE_URL` / `LLM_MODEL` / `LLM_API_KEY`), in JSON mode.
+
+_Property evaluation (M2) and catchment roll-ups (M3) reuse the same fact-table + validator pattern._
 
 ---
 
@@ -205,8 +226,15 @@ _[The open-ended calls the brief left to you — be explicit about why, not just
 
 ## Known Issues & What We'd Improve
 
-- [ ] [Known bug or rough edge]
-- [ ] [Feature that's stubbed/mocked and why]
+**Data limitations (found during ingestion, surfaced in the product rather than hidden):**
+- **OSM building tags are ~98% generic** (`building=yes`) in Chennai, so "residential fabric" is effectively building density × floors. It correlates with demand. With more time: use OSM `landuse=residential` polygons or ISRO Bhuvan land-use/land-cover as a residential mask.
+- **OSM under-maps kiranas.** The median Chennai neighbourhood has zero *mapped* grocery competitors. Scoring uses mid-rank percentiles, so "no mapped shops" is not rewarded as "no competition". Reports flag it in the confidence notes, and M3 lane surveys capture real kirana counts.
+- **Population is a Census 2011 baseline** (the latest census with published town totals), redistributed by building footprint. Scores are city-relative percentiles, so uniform growth since 2011 does not change rankings, but uneven suburban growth (e.g. OMR) is under-represented.
+- **Distances are straight-line**, not drive time. OSRM isochrones are the obvious upgrade.
+- **Rents are MOCK** (no public source) and always badged as such.
+
+**Engineering rough edges:**
+- [ ] Uvicorn `--reload` on Windows can hang when files outside `app/` change. Restart the API manually after backend edits.
 - [ ] [What you'd build next with another 48 hours]
 
 ---

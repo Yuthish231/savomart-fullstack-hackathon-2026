@@ -22,6 +22,14 @@ def include_name(name, type_, parent_names):
     return True
 
 
+def include_object(obj, name, type_, reflected, compare_to):
+    # Tables that exist in the DB but not in our models (e.g. ingest helper tables like
+    # ref.boundary_sub) are not ours to drop: never autogenerate DROP for them.
+    if type_ in ("table", "index") and reflected and compare_to is None:
+        return False
+    return True
+
+
 def run_migrations_offline() -> None:
     context.configure(
         url=config.get_main_option("sqlalchemy.url"),
@@ -29,6 +37,7 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         include_schemas=True,
         include_name=include_name,
+        include_object=include_object,
     )
     with context.begin_transaction():
         context.run_migrations()
@@ -46,6 +55,7 @@ def run_migrations_online() -> None:
             target_metadata=target_metadata,
             include_schemas=True,
             include_name=include_name,
+            include_object=include_object,
             compare_type=True,
         )
         with context.begin_transaction():

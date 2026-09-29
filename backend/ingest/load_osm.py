@@ -16,7 +16,7 @@ import h3
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from ingest.categories import MAJOR_ROADS, SURVEYABLE, classify, classify_building
+from ingest.categories import SURVEYABLE, UNKNOWN_RES_SHARE, classify, classify_building
 from ingest.common import RAW, copy_rows, log, register_source
 
 OSM_DIR = RAW / "osm"
@@ -106,6 +106,77 @@ def load_buildings(db: Session) -> int:
     return n
 
 
+# Residential share for generic ("building=yes") structures inside non-residential land.
+# Commercial/retail keeps some residents: shop-houses with homes above are common in Chennai.
+LANDUSE_RES_SHARE = {
+    "industrial": 0.0, "port": 0.0, "railway": 0.0, "military": 0.0, "aerodrome": 0.0,
+    "depot": 0.0, "garages": 0.0, "cemetery": 0.0,
+    "institutional": 0.1, "education": 0.1, "religious": 0.1, "university": 0.1, "college": 0.1,
+    "school": 0.1, "hospital": 0.1, "marketplace": 0.1,
+    "commercial": 0.25, "retail": 0.25,
+}
+
+
+def _landuse_kind(tags: dict) -> str | None:
+    if tags.get("aeroway") == "aerodrome":
+        return "aerodrome"
+    for key in ("landuse", "amenity"):
+        if tags.get(key) in LANDUSE_RES_SHARE:
+            return tags[key]
+    if "industrial" in tags:
+        return "industrial"
+    return None
+
+
+def _polygons(el) -> list:
+    from shapely.geometry import LineString, Polygon
+    from shapely.ops import polygonize
+
+    if el["type"] == "way":
+        pts = [(g["lon"], g["lat"]) for g in el.get("geometry", [])]
+        if len(pts) >= 4 and pts[0] == pts[-1]:
+            poly = Polygon(pts)
+            return [poly] if poly.is_valid and poly.area > 0 else [poly.buffer(0)]
+        return []
+    lines = [LineString([(g["lon"], g["lat"]) for g in m["geometry"]])
+             for m in el.get("members", []) if m.get("role") == "outer" and len(m.get("geometry", [])) >= 2]
+    return [p for p in polygonize(lines) if p.area > 0]
+
+
+def load_landuse(db: Session) -> int:
+    """Non-residential land polygons, then down-weight generic buildings that sit inside them."""
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS ref.landuse_nonres (
+            id bigserial PRIMARY KEY, osm_type char(1), osm_id bigint, kind text,
+            res_share double precision, geom geometry(Polygon, 4326))
+    """))
+    db.execute(text("CREATE INDEX IF NOT EXISTS ix_landuse_nonres_geom ON ref.landuse_nonres USING gist (geom)"))
+    db.execute(text("TRUNCATE ref.landuse_nonres RESTART IDENTITY"))
+    rows = []
+    for el in _elements("landuse"):
+        kind = _landuse_kind(el.get("tags", {}))
+        if kind is None:
+            continue
+        for poly in _polygons(el):
+            for p in getattr(poly, "geoms", [poly]):
+                if p.geom_type == "Polygon" and not p.is_empty:
+                    rows.append((el["type"][0], el["id"], kind, LANDUSE_RES_SHARE[kind], f"SRID=4326;{p.wkt}"))
+    copy_rows(db, "ref.landuse_nonres", ["osm_type", "osm_id", "kind", "res_share", "geom"], rows)
+    changed = db.execute(text("""
+        UPDATE ref.osm_building b
+           SET res_weight = b.res_weight * l.share / :unknown_share, use_class = 'non_res_land'
+          FROM (SELECT b2.osm_id, min(l.res_share) AS share
+                  FROM ref.osm_building b2
+                  JOIN ref.landuse_nonres l ON ST_Intersects(l.geom, b2.geom)
+                 WHERE b2.use_class = 'unknown'
+                 GROUP BY b2.osm_id) l
+         WHERE b.osm_id = l.osm_id
+    """), {"unknown_share": UNKNOWN_RES_SHARE}).rowcount
+    km2 = db.scalar(text("SELECT round((sum(ST_Area(geom::geography)) / 1e6)::numeric, 1) FROM ref.landuse_nonres"))
+    log.info("non-residential land: %d polygons, %s km2; %d generic buildings down-weighted", len(rows), km2, changed)
+    return len(rows)
+
+
 def split_ways(ways: list[dict]):
     """Yield lane segments: (id, way_id, highway, name, length_m, start_node, end_node, coords)."""
     node_uses = Counter()
@@ -167,9 +238,12 @@ def load_lanes(db: Session) -> int:
 
 
 def load(db: Session) -> None:
-    snap = json.loads((OSM_DIR / "_snapshot.json").read_text(encoding="utf-8"))["timestamp_osm_base"]
+    # OSM snapshot time, taken from the tiles themselves (oldest tile wins).
+    snap = min(json.loads(p.read_text(encoding="utf-8"))["osm3s"]["timestamp_osm_base"]
+               for p in OSM_DIR.glob("poi_*.json"))
     n_poi = load_pois(db)
     n_bldg = load_buildings(db)
+    n_land = load_landuse(db)
     n_lane = load_lanes(db)
     as_of = snap[:10]
     common = dict(url="https://www.openstreetmap.org", license="ODbL 1.0 (c) OpenStreetMap contributors",
@@ -179,6 +253,10 @@ def load(db: Session) -> None:
                     **common)
     register_source(db, "osm_building", "OpenStreetMap buildings (via Overpass)", row_count=n_bldg,
                     notes=f"OSM base {snap}. Centroids with building type and levels.", **common)
+    register_source(db, "osm_landuse", "OpenStreetMap non-residential land use (via Overpass)",
+                    row_count=n_land,
+                    notes=f"OSM base {snap}. Industrial, port, rail, airport, campuses, commercial zones: "
+                          "generic buildings inside get a reduced residential share.", **common)
     register_source(db, "osm_road", "OpenStreetMap road network (via Overpass)", row_count=n_lane,
                     notes=f"OSM base {snap}. Split into lane segments at intersections, max 250 m.",
                     **common)

@@ -104,12 +104,16 @@ NON_RESIDENTIAL = {
     "factory", "parking", "hangar", "stadium", "sports_hall", "civic", "fire_station",
     "toilets", "water_tower", "kiosk", "bridge", "ruins", "greenhouse", "farm_auxiliary",
 }
-# Share of an untagged ("building=yes") structure's floor area assumed residential.
+# Share of an untagged ("building=yes") structure assumed residential.
 UNKNOWN_RES_SHARE = 0.6
+# An apartment block holds several households. building:levels is NOT used for weighting:
+# in Chennai only ~1.8% of buildings carry it, and a third of those in one zone (Royapuram),
+# so using it would move residents towards wherever mappers happened to tag floors.
+APARTMENT_WEIGHT = 4.0
 
 
 def classify_building(tags: dict[str, str]) -> tuple[str, str, int, float]:
-    """Returns (kind, use_class, levels, residential weight)."""
+    """Returns (kind, use_class, levels (informational), residential weight)."""
     kind = (tags.get("building") or "yes").lower()[:30]
     raw_levels = tags.get("building:levels", "")
     try:
@@ -125,7 +129,8 @@ def classify_building(tags: dict[str, str]) -> tuple[str, str, int, float]:
     else:
         use = "unknown"
         share = UNKNOWN_RES_SHARE
-    return kind, use, levels, levels * share
+    units = APARTMENT_WEIGHT if kind == "apartments" else 1.0
+    return kind, use, levels, units * share
 
 
 # --- Roads ------------------------------------------------------------------------------

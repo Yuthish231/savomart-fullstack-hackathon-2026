@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     )
     stores_api_token: str = ""
 
-    nominatim_user_agent: str = "savo-sitescout-hackathon/0.1"
+    nominatim_user_agent: str = "SavoSiteScout/0.1 (Savomart hackathon prototype; low-volume, cached)"
 
     cors_origins: str = "http://localhost:5173"
     media_dir: str = str(REPO_ROOT / "media")

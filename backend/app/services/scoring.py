@@ -6,7 +6,7 @@ network fit uses a distance band instead, because both too-close (cannibalisatio
 too-far (supply chain) are bad.
 """
 
-from bisect import bisect_left
+from bisect import bisect_left, bisect_right
 from dataclasses import asdict, dataclass
 
 SCORING_VERSION = "v1"
@@ -48,20 +48,22 @@ NETWORK_BAND = [(0.0, 5), (1.0, 10), (2.0, 45), (3.0, 85), (4.0, 100), (8.0, 100
 
 
 def percentile(value: float, breakpoints: list[float]) -> float:
-    """Position of value within p0..p100 breakpoints, linearly interpolated, 0-100."""
-    if value <= breakpoints[0]:
+    """Position of value within p0..p100 breakpoints, linearly interpolated, 0-100.
+
+    Ties take the middle of their run (mid-rank). This matters for sparse metrics: if 60% of
+    neighbourhoods have zero *mapped* competitors, a zero sits at p30, not p0, so an area
+    isn't rewarded as "no competition" just because OpenStreetMap is missing its kiranas.
+    """
+    lo_i = bisect_left(breakpoints, value)
+    hi_i = bisect_right(breakpoints, value)
+    if hi_i > lo_i:  # value equals one or more breakpoints: mid-rank of the tie run
+        return (lo_i + hi_i - 1) / 2
+    if lo_i == 0:
         return 0.0
-    if value >= breakpoints[-1]:
+    if lo_i >= len(breakpoints):
         return 100.0
-    i = bisect_left(breakpoints, value)
-    lo, hi = breakpoints[i - 1], breakpoints[i]
-    # Flat runs (many identical values, e.g. zero competitors) take the middle of the run.
-    if hi == lo:
-        j = i
-        while j < len(breakpoints) and breakpoints[j] == hi:
-            j += 1
-        return float((i - 1 + j - 1) / 2)
-    return (i - 1) + (value - lo) / (hi - lo)
+    lo, hi = breakpoints[lo_i - 1], breakpoints[lo_i]
+    return (lo_i - 1) + (value - lo) / (hi - lo)
 
 
 def network_score(distance_km: float) -> float:

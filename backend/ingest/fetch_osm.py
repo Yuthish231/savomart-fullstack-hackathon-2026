@@ -11,7 +11,7 @@ from ingest.common import CMA_BBOX, RAW, log, overpass, setup_logging, tiles
 OSM_DIR = RAW / "osm"
 
 POI_QUERY = """
-[out:json][timeout:300];
+[out:json][timeout:180];
 (
   nwr["shop"]({bbox});
   nwr["amenity"~"^(school|college|university|kindergarten|hospital|clinic|doctors|pharmacy|bus_station|place_of_worship|marketplace|bank|restaurant|cafe|fast_food|cinema)$"]({bbox});
@@ -27,7 +27,7 @@ out center tags;
 # Road network used for access scores and survey lanes. `out geom` keeps node ids too,
 # which we need to split ways at intersections.
 ROAD_QUERY = """
-[out:json][timeout:300];
+[out:json][timeout:180];
 way["highway"~"^(motorway|trunk|primary|secondary|tertiary|motorway_link|trunk_link|primary_link|secondary_link|tertiary_link|unclassified|residential|living_street|service|pedestrian|road)$"]
    ["service"!~"^(parking_aisle|driveway|drive-through|emergency_access)$"]
    ["access"!~"^(private|no)$"]({bbox});
@@ -35,15 +35,28 @@ out geom;
 """
 
 BUILDING_QUERY = """
-[out:json][timeout:300];
+[out:json][timeout:180];
 way["building"]({bbox});
 out center tags;
+"""
+
+# Non-residential land: generic "building=yes" structures inside these are not homes.
+LANDUSE_QUERY = """
+[out:json][timeout:180];
+(
+  wr["landuse"~"^(commercial|retail|industrial|railway|military|port|garages|depot|institutional|education|religious|cemetery)$"]({bbox});
+  wr["amenity"~"^(university|college|school|hospital|marketplace)$"]({bbox});
+  wr["aeroway"="aerodrome"]({bbox});
+  wr["industrial"]({bbox});
+);
+out geom;
 """
 
 JOBS = [
     ("poi", POI_QUERY, 2, 2),
     ("road", ROAD_QUERY, 3, 3),
     ("building", BUILDING_QUERY, 4, 4),
+    ("landuse", LANDUSE_QUERY, 2, 2),
 ]
 
 

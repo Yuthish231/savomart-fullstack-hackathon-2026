@@ -70,7 +70,7 @@ def overpass(query: str, cache: Path, *, attempts: int = 6) -> dict[str, Any]:
     for i in range(attempts):
         url = OVERPASS_MIRRORS[(_preferred_mirror + i) % len(OVERPASS_MIRRORS)]
         try:
-            r = httpx.post(url, data={"data": query}, headers={"User-Agent": UA}, timeout=400)
+            r = httpx.post(url, data={"data": query}, headers={"User-Agent": UA}, timeout=200)
             if r.status_code in (429, 504):
                 raise httpx.HTTPStatusError(f"busy {r.status_code}", request=r.request, response=r)
             r.raise_for_status()

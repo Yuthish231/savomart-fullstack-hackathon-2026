@@ -36,16 +36,20 @@ def build_cells(db: Session) -> int:
     cma = wkb.loads(bytes(db.scalar(text("SELECT ST_AsBinary(geom) FROM ref.boundary WHERE key='cma'"))))
     cells = h3.geo_to_cells(mapping(cma), RES)
     db.execute(text("TRUNCATE ref.h3_cell"))
-    rows = ((c, h3.cell_to_parent(c, 8), h3.cell_area(c, "km^2"), f"SRID=4326;{_cell_poly_wkt(c)}")
-            for c in cells)
-    return copy_rows(db, "ref.h3_cell", ["h3", "h3_r8", "area_km2", "geom"], rows)
+    # COPY bypasses ORM defaults, so zero-initialise every NOT NULL feature column here.
+    zeros = ["pop_est", "bldg_count", "res_bldg_count", "footfall_pts", "comp_convenience",
+             "comp_supermarket", "comp_organised", "retail_count", "road_major_m", "road_minor_m"]
+    rows = ((c, h3.cell_to_parent(c, 8), h3.cell_area(c, "km^2"), False, *([0] * len(zeros)), "{}", "{}",
+             f"SRID=4326;{_cell_poly_wkt(c)}") for c in cells)
+    return copy_rows(db, "ref.h3_cell",
+                     ["h3", "h3_r8", "area_km2", "in_gcc", *zeros, "poi_counts", "nbhd", "geom"], rows)
 
 
 def aggregate(db: Session) -> None:
     db.execute(text("""
         UPDATE ref.h3_cell c SET pop_est = s.pop, bldg_count = s.n,
                res_bldg_count = s.n_res
-          FROM (SELECT h3_r9, sum(pop_est) AS pop, count(*) AS n,
+          FROM (SELECT h3_r9, coalesce(sum(pop_est), 0) AS pop, count(*) AS n,
                        count(*) FILTER (WHERE use_class = 'residential'
                                         OR (use_class = 'unknown' AND res_weight > 0)) AS n_res
                   FROM ref.osm_building GROUP BY h3_r9) s
@@ -72,13 +76,11 @@ def aggregate(db: Session) -> None:
     db.execute(text("""
         UPDATE ref.h3_cell c SET road_major_m = s.major, road_minor_m = s.minor
           FROM (SELECT h3_r9,
-                       sum(length_m) FILTER (WHERE highway = ANY(:major)) AS major,
-                       sum(length_m) FILTER (WHERE highway <> ALL(:major)) AS minor
+                       coalesce(sum(length_m) FILTER (WHERE highway = ANY(:major)), 0) AS major,
+                       coalesce(sum(length_m) FILTER (WHERE highway <> ALL(:major)), 0) AS minor
                   FROM ref.lane_segment GROUP BY h3_r9) s
          WHERE c.h3 = s.h3_r9
     """), {"major": sorted(MAJOR_ROADS)})
-    db.execute(text("UPDATE ref.h3_cell SET road_major_m = coalesce(road_major_m, 0), "
-                    "road_minor_m = coalesce(road_minor_m, 0)"))
     db.execute(text("""
         UPDATE ref.h3_cell c SET ward_no = w.ward_no, in_gcc = true
           FROM ref.ward w WHERE ST_Contains(w.geom, ST_Centroid(c.geom))

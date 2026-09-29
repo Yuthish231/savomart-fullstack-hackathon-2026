@@ -60,7 +60,21 @@ def test_poi_classification(tags, category, tier):
 
 def test_building_weights():
     assert classify_building({"building": "apartments"})[1:] == ("residential", 4, 4.0)
-    assert classify_building({"building": "house", "building:levels": "2"})[3] == 2.0
+    # Floors are informational only: tagged too unevenly in Chennai to weight residents.
+    assert classify_building({"building": "house", "building:levels": "2"})[3] == 1.0
     assert classify_building({"building": "commercial"})[3] == 0.0
     kind, use, levels, w = classify_building({"building": "yes"})
     assert use == "unknown" and 0 < w < 1
+
+
+def test_density_ceiling_preserves_total_and_caps():
+    from ingest.population import ceiling_factors
+
+    pops = {"a": 1000.0, "b": 100.0, "c": 100.0, "d": 100.0}
+    areas = dict.fromkeys(pops, 0.01)  # "a" is 100k/km2; cap 50k/km2 -> at most 500 per cell
+    f = ceiling_factors(pops, areas, cap=50_000)
+    new = {k: pops[k] * f[k] for k in pops}
+    assert new["a"] == pytest.approx(500)
+    assert sum(new.values()) == pytest.approx(sum(pops.values()))  # zone total preserved
+    assert all(v <= 500 + 1e-6 for v in new.values())
+    assert new["b"] == pytest.approx(new["c"])  # excess spread proportionally

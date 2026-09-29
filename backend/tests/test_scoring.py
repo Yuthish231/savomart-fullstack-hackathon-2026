@@ -14,11 +14,12 @@ def test_percentile_interpolates(value, expected):
     assert percentile(value, LINEAR) == pytest.approx(expected)
 
 
-def test_percentile_flat_run_takes_middle():
-    # 40% of neighbourhoods have zero competitors: a zero shouldn't score 0 or 40, but ~20.
+def test_percentile_ties_take_mid_rank():
+    # 40% of neighbourhoods have zero mapped competitors: zero is p20, not p0 (or p40).
     bps = [0.0] * 41 + [float(i) for i in range(1, 61)]
-    assert percentile(0.0, bps) == 0.0  # at/below p0 is still 0
-    assert 15 <= percentile(1e-9, bps) <= 45
+    assert percentile(0.0, bps) == 20.0
+    assert percentile(-1.0, bps) == 0.0
+    assert 40 <= percentile(0.5, bps) <= 41
 
 
 @pytest.mark.parametrize(
