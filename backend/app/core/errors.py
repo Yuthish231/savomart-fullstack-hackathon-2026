@@ -44,10 +44,11 @@ def register_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(RequestValidationError)
     async def _validation(_: Request, exc: RequestValidationError) -> JSONResponse:
-        return JSONResponse(
-            _body("VALIDATION_ERROR", "Some fields are invalid", {"fields": exc.errors()}),
-            status_code=422,
-        )
+        # Pydantic's raw errors can carry exception objects (not JSON): keep the useful parts.
+        fields = [{"loc": [str(p) for p in e.get("loc", [])], "msg": str(e.get("msg", "")), "type": e.get("type")}
+                  for e in exc.errors()]
+        message = fields[0]["msg"].removeprefix("Value error, ") if len(fields) == 1 else "Some fields are invalid"
+        return JSONResponse(_body("VALIDATION_ERROR", message, {"fields": fields}), status_code=422)
 
     @app.exception_handler(StarletteHTTPException)
     async def _http(_: Request, exc: StarletteHTTPException) -> JSONResponse:

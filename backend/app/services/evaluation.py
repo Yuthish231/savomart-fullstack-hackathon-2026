@@ -208,13 +208,17 @@ def gather_context(db: Session, lat: float, lon: float, overrides: dict[str, Any
                       if band else None),
         "footfall_500m": footfall,
     }
-    if overrides:  # e.g. surveyed households from a catchment study (M3)
+    if overrides:  # ground truth from a completed catchment study (M3) replaces modelled values
         ctx["overrides"] = overrides
-        if overrides.get("population"):
-            ctx["population_1km"] = overrides["population"]
+        m = ctx["model"]
+        ctx["modelled"] = {"pop_density": m["pop_density"], "comp_per_10k": m["comp_per_10k"]}
+        if overrides.get("demand_factor"):
+            m["pop_density"] = round(m["pop_density"] * overrides["demand_factor"], 1)
+            ctx["population_1km"] = round(ctx["population_1km"] * overrides["demand_factor"])
             ctx["population_source"] = overrides.get("source", "catchment survey")
-            m = ctx["model"]
-            m["pop_density"] = round(overrides["population"] / m["area_km2"], 1)
+        if overrides.get("comp_per_10k") is not None:
+            # OSM under-maps kiranas; never let the survey *lower* competition below what's mapped.
+            m["comp_per_10k"] = max(m["comp_per_10k"], overrides["comp_per_10k"])
     return ctx
 
 
@@ -237,6 +241,18 @@ def assess(db: Session, details: dict[str, Any], ctx: dict[str, Any], flags: lis
     pop = ctx["population_1km"]
     insights.append({"code": "CATCHMENT_POP", "text": f"About {pop:,} residents live within ~1 km "
                      f"({ctx['population_source']})", "fact_ids": ["population_1km"]})
+    modelled = ctx.get("modelled")
+    if modelled:
+        m = ctx["model"]
+        change = m["pop_density"] / modelled["pop_density"] - 1 if modelled["pop_density"] else 0
+        item = {"code": "SURVEY_DEMAND", "fact_ids": ["population_1km"],
+                "text": f"Ground survey puts density at {m['pop_density']:,.0f}/km² vs {modelled['pop_density']:,.0f} "
+                        f"modelled ({change:+.0%}), from {ctx['population_source']}"}
+        (insights if change >= 0 else risks).append(item if change >= 0 else {**item, "severity": "medium"})
+        if m["comp_per_10k"] > modelled["comp_per_10k"] * 1.2:
+            risks.append({"code": "SURVEY_COMPETITION", "severity": "medium", "fact_ids": [],
+                          "text": "Surveyors found more grocery shops than OpenStreetMap shows; "
+                                  "competition is higher than the desk estimate"})
     road = ctx["frontage_road"]
     if road and road["highway"] in ("primary", "secondary", "trunk", "tertiary"):
         insights.append({"code": "ARTERIAL_FRONTAGE", "text": f"Fronts {road['name'] or 'a ' + road['highway'] + ' road'}"

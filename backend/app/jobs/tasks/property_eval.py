@@ -11,9 +11,9 @@ from app.jobs.queue import JobContext
 from app.jobs.registry import task
 from app.llm import grounding
 from app.llm.provider import LLMUnavailable, get_llm
-from app.models import Property, PropertyEvaluation
+from app.models import CatchmentStudy, Property, PropertyEvaluation
 from app.services import evaluation as ev_svc
-from app.services import pipeline
+from app.services import pipeline, rollup
 
 SYSTEM_PROMPT = """You are a retail real-estate analyst for Savomart, a neighbourhood grocery chain in Chennai.
 Assess one candidate property for a BD Manager who must decide in 30 seconds.
@@ -45,9 +45,16 @@ def run(ctx: JobContext) -> None:
     pin = wkb.loads(bytes(prop.pin.data))
     inputs = {**prop.details, "rent_monthly": prop.rent_monthly, "carpet_sqft": prop.carpet_sqft}
 
+    overrides = ctx.payload.get("overrides") or None
+    if overrides is None:  # re-runs keep the latest completed catchment study's ground truth
+        study = ctx.db.scalar(select(CatchmentStudy).where(
+            CatchmentStudy.property_id == prop.id, CatchmentStudy.status == "COMPLETED")
+            .order_by(CatchmentStudy.completed_at.desc()).limit(1))
+        overrides = rollup.evaluation_overrides(study) if study else None
+
     def context() -> None:
         e = _ev(ctx)
-        e.context = ev_svc.gather_context(ctx.db, pin.y, pin.x, ctx.payload.get("overrides") or None)
+        e.context = ev_svc.gather_context(ctx.db, pin.y, pin.x, overrides)
         e.inputs_snapshot = inputs | {"flags": prop.flags, "lat": pin.y, "lon": pin.x}
         ctx.db.commit()
 

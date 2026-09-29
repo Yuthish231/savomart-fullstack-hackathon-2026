@@ -224,6 +224,15 @@ def transition(prop_id: uuid.UUID, body: TransitionIn, db: Session = Depends(get
                user: User = Depends(field_or_manager)):
     prop = _get(db, prop_id)
     svc.assert_can_view(prop, user)
+    if body.to == "CATCHMENT_STUDY" and prop.stage == "NEGOTIATION":
+        from app.services import studies as study_svc  # local import: avoid a module cycle
+
+        study = study_svc.create_study(db, target_type="property", requested_by=user.id, prop=prop,
+                                       notes=body.reason)
+        pipeline.apply(db, prop, "CATCHMENT_STUDY", role=user.role, actor_id=user.id,
+                       reason=body.reason or f"Requested {study.code}", is_owner=prop.created_by == user.id)
+        db.commit()
+        return _detail(db, prop, user)
     pipeline.apply(db, prop, body.to, role=user.role, actor_id=user.id, reason=body.reason,
                    is_owner=prop.created_by == user.id)
     if prop.stage in ("REJECTED", "APPROVED") and prop.scouting_task_id:
@@ -332,6 +341,11 @@ def _detail(db: Session, prop: Property, user: User) -> dict[str, Any]:
         "last_completed_evaluation": _eval_out(last_done, db) if last_done and latest and last_done.id != latest.id else None,
         "photos": [{"id": p.id, "kind": p.kind, "path": p.path} for p in photos],
         "events": [dict(e._mapping) for e in events],
+        "studies": [dict(r._mapping) for r in db.execute(text("""
+            SELECT id, code, status, reuse_mode, reuse_coverage, created_at, completed_at,
+                   (insight ->> 'households_est')::int AS households_est
+              FROM app.catchment_study WHERE property_id = :i ORDER BY created_at DESC
+        """), {"i": prop.id})],
         "allowed_transitions": pipeline.allowed_transitions(prop.stage, user.role, prop.created_by == user.id)
         if user.role in (Role.BDM, Role.BDE) else [],
         "labels": {"floor": FLOORS, "delivery_access": ACCESS, "visibility": VISIBILITY,
