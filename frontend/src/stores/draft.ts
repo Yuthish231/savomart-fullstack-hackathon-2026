@@ -4,8 +4,11 @@ import type { PropertyForm } from "@/api/properties";
 
 export type Draft = Partial<PropertyForm> & { step?: number; savedAt?: string };
 
+/** Drafts are per user: one browser is shared by every persona in the demo (and on a shared phone). */
+export const draftKey = (userId: string, propertyId?: string) => `${userId}:${propertyId ?? "new"}`;
+
 interface DraftState {
-  drafts: Record<string, Draft>; // key: "new" or a property id being edited
+  drafts: Record<string, Draft>; // key: draftKey(user, "new" or the property id being edited)
   save: (key: string, d: Draft) => void;
   clear: (key: string) => void;
 }

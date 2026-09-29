@@ -3,11 +3,13 @@ import { Building2, PlusCircle } from "lucide-react";
 import { useProperties } from "@/api/properties";
 import { Button, Card, EmptyState, ErrorNote, PageHeader, Spinner } from "@/components/ui";
 import { FlagChips, RecPill, StageBadge, ago } from "@/components/property";
-import { useDrafts } from "@/stores/draft";
+import { draftKey, useDrafts } from "@/stores/draft";
+import { useAuth } from "@/stores/auth";
 
 export function MyPropertiesPage() {
   const { data, isLoading, error } = useProperties();
-  const draft = useDrafts((s) => s.drafts.new);
+  const userId = useAuth((s) => s.user)!.id;
+  const draft = useDrafts((s) => s.drafts[draftKey(userId)]);
 
   return (
     <div className="mx-auto max-w-3xl p-4 md:p-6">

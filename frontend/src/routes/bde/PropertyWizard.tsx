@@ -11,7 +11,8 @@ import { MapView } from "@/map/MapView";
 import { BRAND } from "@/map/layers";
 import { Badge, Button, Card, ErrorNote } from "@/components/ui";
 import { compressImage } from "@/lib/image";
-import { useDrafts, type Draft } from "@/stores/draft";
+import { draftKey, useDrafts, type Draft } from "@/stores/draft";
+import { useAuth } from "@/stores/auth";
 import { cn } from "@/lib/cn";
 
 const STEPS = ["Pin", "Details", "Photos"] as const;
@@ -92,14 +93,16 @@ export function PropertyWizard() {
   const { id: editId } = useParams();
   const [params] = useSearchParams();
   const navigate = useNavigate();
-  const key = editId ?? "new";
+  const userId = useAuth((s) => s.user)!.id;
+  const key = draftKey(userId, editId);
   const { drafts, save, clear } = useDrafts();
   const existing = useProperty(editId);
   const tasks = useTasks();
-  const taskId = params.get("task") ?? drafts[key]?.scouting_task_id ?? null;
-  const task = tasks.data?.find((t) => t.id === taskId);
+  const urlTask = params.get("task");
 
   const [d, setD] = useState<Draft>(() => drafts[key] ?? { property_type: "shop", floor: "ground", step: 0 });
+  const taskId = urlTask ?? d.scouting_task_id ?? null;
+  const task = tasks.data?.find((t) => t.id === taskId);
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [gpsState, setGpsState] = useState<"idle" | "locating" | "ok" | "denied">("idle");
   const [submitState, setSubmitState] = useState<string | null>(null);
@@ -122,9 +125,17 @@ export function PropertyWizard() {
     });
   }, [existing.data]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // The task you tapped wins over one remembered in the draft.
   useEffect(() => {
-    if (taskId && !d.scouting_task_id) set({ scouting_task_id: taskId });
-  }, [taskId]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (urlTask && d.scouting_task_id !== urlTask) set({ scouting_task_id: urlTask });
+  }, [urlTask]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A draft can outlive its task (closed, reassigned, or demo data reset): drop the stale link
+  // rather than fail on submit.
+  useEffect(() => {
+    if (tasks.isSuccess && d.scouting_task_id && !tasks.data.some((t) => t.id === d.scouting_task_id))
+      set({ scouting_task_id: null });
+  }, [tasks.isSuccess, tasks.data, d.scouting_task_id]);
 
   const locate = () => {
     if (!("geolocation" in navigator)) return setGpsState("denied");
