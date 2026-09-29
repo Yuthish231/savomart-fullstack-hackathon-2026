@@ -119,6 +119,7 @@ CS-0001's lane surveys are **synthetic**: homes per lane come from real OSM buil
 
 - **Video walkthrough (3–5 min):** [TODO — Google Drive link, "Anyone with the link can view"]
 - **Live deployment (optional bonus):** Not deployed; run locally, see [How to Run](#how-to-run).
+- **Walkthrough script:** [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) lists each scene, what to click and what it shows, so you can replay the demo yourself.
 
 ---
 
