@@ -45,3 +45,7 @@ def test_recommendation_rules():
     assert recommend(70, [], 0) == "proceed"
     assert recommend(70, [], 1) == "review"
     assert recommend(50, [], 0) == "review"
+    # great location, poor unit: two poor checks or a weak site score keep it at review
+    assert recommend(72, [], 0, site=70, poor_checks=2) == "review"
+    assert recommend(72, [], 0, site=50, poor_checks=0) == "review"
+    assert recommend(72, [], 0, site=70, poor_checks=1) == "proceed"

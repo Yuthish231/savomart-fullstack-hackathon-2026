@@ -148,10 +148,15 @@ def site_score(checks: list[Check]) -> float:
                  / sum(c.weight for c in checks), 1)
 
 
-def recommend(total: float, blockers: list[str], high_risks: int) -> str:
+MIN_SITE_FOR_PROCEED = 55.0  # a great location can't rescue an unsuitable unit
+MAX_POOR_FOR_PROCEED = 1
+
+
+def recommend(total: float, blockers: list[str], high_risks: int, site: float = 100.0, poor_checks: int = 0) -> str:
     if blockers:
         return "reject"
-    if total >= PROCEED_AT and high_risks == 0:
+    if (total >= PROCEED_AT and high_risks == 0 and site >= MIN_SITE_FOR_PROCEED
+            and poor_checks <= MAX_POOR_FOR_PROCEED):
         return "proceed"
     return "review"
 
@@ -300,7 +305,11 @@ def assess(db: Session, details: dict[str, Any], ctx: dict[str, Any], flags: lis
         risks.append({"code": f["code"], "severity": sev, "text": f["message"], "fact_ids": []})
 
     high = sum(1 for r in risks if r["severity"] == "high")
-    rec = recommend(total, blockers, high)
+    poor = sum(1 for c in checks if c.status == "poor")
+    rec = recommend(total, blockers, high, site, poor)
+    if rec == "review" and not high and poor > MAX_POOR_FOR_PROCEED:
+        risks.append({"code": "WEAK_SITE", "severity": "medium", "fact_ids": ["site_score"],
+                      "text": f"{poor} site checks are poor: a strong location doesn't make up for an unsuitable unit"})
     sev_order = {"high": 0, "medium": 1, "low": 2}
     risks.sort(key=lambda r: sev_order.get(r["severity"], 3))
     return {

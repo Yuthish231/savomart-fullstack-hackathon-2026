@@ -83,6 +83,21 @@ python -m ingest.run_all        # load + clean + precompute (about 90 s, re-runn
 python -m ingest.verify         # data-quality report; should end with "all checks passed"
 ```
 
+### 5. Demo data (optional, about 1 minute)
+
+```bash
+cd backend
+python -m scripts.demo_seed --reset   # wipes app data (keeps users + reference data), then builds the demo story
+```
+
+This runs the real code paths in-process and creates:
+- 4 area reports (Velachery, Anna Nagar, Thiruvanmiyur, T. Nagar).
+- Scouting tasks, and 7 properties across the pipeline, including a likely duplicate, a cannibalisation reject and a great-location-but-poor-unit "review".
+- **CS-0001**, a completed catchment study.
+- **CS-0002**, an area study half-way through fieldwork.
+
+CS-0001's lane surveys are **synthetic**: dwellings are derived from real OSM building density per lane, the other fields are random but plausible. They are flagged `is_seed`, and the UI says "Includes synthetic demo survey data". To see **reuse** live: as the BD Manager, open *Lakshmi Towers* (Negotiation, about 110 m from CS-0001's site) and choose *Request catchment study*.
+
 > Large raw datasets are fetched by script, not committed. See [Data Sources & Processing](#data-sources--processing).
 
 ---
@@ -129,18 +144,23 @@ For password login (`POST /api/v1/auth/login`), every seeded user shares the pas
 
 ## Data Model & Schema
 
-_[Entity list + brief explanation of relationships — Areas, Reports, Properties, PipelineEvents, CatchmentStudies, Lanes, Users/Roles, etc.]_
+Two schemas: **`ref`** holds re-ingestable public data (it can be rebuilt without touching user data) and **`app`** holds workflow data. The ER diagram is in [docs/ARCHITECTURE.md §6.3](docs/ARCHITECTURE.md), and the migrations are in [`backend/alembic/versions`](backend/alembic/versions).
 
 | Entity | Purpose | Key fields |
 | --- | --- | --- |
-| `[Area]` | | |
-| `[AreaFitnessReport]` | | |
-| `[Property]` | | |
-| `[PipelineEvent]` | Audit trail of stage moves | |
-| `[CatchmentStudy]` | | |
-| `[Lane]` | Unit of survey work | |
-
-_[Link to a schema diagram or migration files if useful.]_
+| `ref.h3_cell` | Precomputed features per H3 res-9 cell (~0.1 km²) | population, buildings, footfall, competitors by tier, road length, nearest Savomart, `nbhd` densities, `opportunity` |
+| `ref.lane_segment` | Road network split at intersections, ≤ 250 m; **stable ids** `<way>:<seq>` make reuse an exact join | highway, length_m, start/end node, geom |
+| `ref.metric_stats` | City-wide p0..p100 breakpoints per metric | used for percentile scoring |
+| `ref.data_source` | Provenance of every dataset | url, licence, as_of, is_mock |
+| `app.area` / `app.area_report` | A selection (pincode / locality / cells → polygon + cells) and immutable report snapshots | sub_scores, hotspots, facts, narrative, data_sources, confidence |
+| `app.job` | Postgres job queue | steps (checkpointed), status, heartbeat, attempts |
+| `app.scouting_task` | BDM directs a BDE to a hotspot | report, hotspot, assignee, status |
+| `app.property` | Onboarded site | pin + GPS fix, details, flags, stage, latest score |
+| `app.property_evaluation` | **Versioned** evaluations (created / edited / catchment / manual) | location + site score, checks, insights, risks, facts, narrative |
+| `app.pipeline_event` | Insert-only audit trail | kind, from → to, actor, reason, at |
+| `app.catchment_study` | A study request against a property or area report | geom, status, reuse_mode/coverage, insight |
+| `app.work_chunk` / `app.study_lane` | Partition of the study's lanes and per-lane progress | chunk assignee, lane status (todo / draft / done / skipped / reused) |
+| `app.lane_survey` | One observation of one lane | phone `client_uuid` (unique), version, status, data, `is_seed` |
 
 ---
 
@@ -222,10 +242,12 @@ _[The open-ended calls the brief left to you — be explicit about why, not just
 - **Pipeline stages (M2):** Sighted → Evaluated → Shortlisted → Site visit → Negotiation → Catchment study → Final review → Approved, plus On hold / Rejected from any active stage. This mirrors how a BD team actually moves a site: desk evaluation before anyone travels, a physical visit before money is discussed, and the catchment study only once terms look viable (surveys cost field time). Transitions are a declarative table ([`services/pipeline.py`](backend/app/services/pipeline.py)) with role guards. Reject, hold and "skip study" require a reason. Executives can only report their own site visit. Every move writes an insert-only `pipeline_event` in the same transaction as the stage change.
 - **Property evaluation (M2):** 60% location (the M1 model on ~1 km around the pin) + 40% site checks (size vs the 1,500–4,000 sq ft target, floor, frontage, delivery access, visibility, parking, rent vs the MOCK local band). Blockers force "reject" (under 800 sq ft, no vehicle access, under 0.8 km from an existing Savomart store). Unresolved data-quality flags (pin more than 150 m from the phone's GPS, suspected duplicate) keep it at "review". Every edit or re-run creates a new evaluation version, and the change is shown.
 - **Bad field input (M2):** the wizard pre-checks the pin (inside the CMA, pincode, rent band, look-alikes within 50 m by distance + trigram name similarity) *before* submit. Missing rent is allowed and marked "incomplete" rather than blocking. Drafts persist on the phone across reloads and dropped networks. Photos are compressed on-device, then type- and magic-byte-checked on the server.
-- **Catchment splitting (M3):** [how you split work into fair, non-overlapping chunks]
-- **Reuse threshold (M3):** [what "close enough and fresh enough" means in your implementation]
-- **Offline/weak-network handling (M3):** [what happens to a half-filled survey]
-- **What we deliberately left out, and why**
+- **Catchment (M3):** a property's catchment is a 500 m radius (roughly a 6–7 minute walk, the core draw of a neighbourhood grocery). An area study samples 500 m around the report's top 3 hotspots rather than a whole 5–7 km² area, which would be weeks of fieldwork. Lanes are the pre-split OSM lane segments (≤ 250 m, residential/service/tertiary) whose midpoint falls inside.
+- **Catchment splitting (M3):** [`services/splitter.py`](backend/app/services/splitter.py) partitions lanes into chunks of similar walking *effort* (length, busier roads ×1.5). It uses farthest-point seeds, then balanced region growing along the street graph (always extending the lightest chunk with its nearest adjacent lane), then boundary rebalancing and a merge of hemmed-in chunks. Every lane lands in exactly one chunk, so chunks can't overlap. A real-data finding: surveyable lanes alone fall apart into islands at every main road and at the circle's edge. So arterials and streets just outside the catchment act as *connectors* (union-find over their nodes). On real Chennai catchments this gives a max/min effort ratio of 1.2–1.5, and every chunk is contiguous except where a genuinely isolated island exists. The Survey Manager picks the effort per chunk (2–5 km) and can re-split until fieldwork starts.
+- **Reuse threshold (M3):** *close enough* is measured on the actual lanes, not the distance between centroids. Each lane's latest submitted or skipped observation from any other study is reused if it is **under 180 days old**. If reused lanes cover **≥ 80% of the catchment's lane length**, no fieldwork happens and the insight is rolled up immediately (our demo: 88% reuse, insight in about 3 s). Otherwise only the uncovered lanes go to the field ("partial"). Managers can override with "Resurvey anyway" (a reason is required), e.g. after demolition or new construction.
+- **Offline / weak network (M3):** every tap on the lane form is written to IndexedDB (Dexie) immediately, so a half-filled lane is a local *draft* that survives reloads, dead batteries and app switches. An outbox syncs on reconnect, every 20 s and on focus, using an idempotent `PUT /lane-surveys/{client_uuid}` (the UUID is generated on the phone), so retries can't duplicate. A `base_version` check returns 409 with the server copy if the lane changed elsewhere, and the conflict is flagged rather than silently overwritten. Opened chunks are cached on the phone and reopen with no signal. A header badge shows "Offline · N to sync". Drafts sync to the server too, so the Survey Manager sees "in progress" lanes and the last sync time per chunk.
+- **Survey → evaluation (M3):** the roll-up extrapolates households over unsurveyed lane length (skipped lanes count as no homes) and compares the result with the Census-based model *for the same 500 m circle*. That survey/model **ratio** (not the dense core's raw density) is carried into the property's ~1 km evaluation, and surveyed kirana counts can only *raise* competition above what OSM mapped. The property is re-evaluated (new version, delta shown) and moves to Final Review.
+- **What we deliberately left out, and why:** a service worker for a fully offline app shell (the data layer is offline-first; the shell must be opened once online), OSRM drive-time isochrones (straight-line distances are labelled), notifications, photo EXIF location checks, a real rent source (none is public), and the conversational analyst bonus. The M1–M3 loop came first.
 
 ---
 
@@ -256,8 +278,9 @@ Full AI chat sessions / history: see [`/ai-sessions`](./ai-sessions) or [TODO �
 
 - [x] **M1 — Area Intelligence:** map selection (pincode / locality / grid cells), Area Fitness Report, save/compare/timestamp
 - [x] **M2 — Property Scouting:** hotspot → scouting task, mobile onboarding wizard, auto-evaluation (versioned), pipeline with audit trail
-- [ ] **M3 — Catchment Study:** request → split → assign → lane capture → roll-up, reuse logic
+- [x] **M3 — Catchment Study:** request (property or area) → lane-level reuse check → split → assign → offline-first lane capture → roll-up → property re-evaluation
 - [x] Bonus: **city-wide opportunity map** (every ~0.7 km² hex scored with the same model)
+- [~] Bonus: **offline-first field capture** (IndexedDB drafts + idempotent sync outbox + cached chunks; no service worker for the app shell yet)
 
 ---
 
