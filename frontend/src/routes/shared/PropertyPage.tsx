@@ -119,6 +119,19 @@ export function PropertyPage() {
             {actions.transition.error && <div className="mt-2"><ErrorNote error={actions.transition.error} /></div>}
           </Card>
 
+          {p.studies.length > 0 && (
+            <Card className="flex flex-wrap items-center gap-3 p-3 text-sm">
+              <span className="font-semibold text-slate-700">Catchment studies:</span>
+              {p.studies.map((st) => (
+                <Link key={st.id} to={`${user.role === "SM" ? "/sm" : "/bdm"}/studies/${st.id}`} className="text-savo-purple hover:underline">
+                  {st.code} · {st.status.toLowerCase().replace("_", " ")}
+                  {st.reuse_mode !== "none" && ` · ${Math.round(st.reuse_coverage * 100)}% reused`}
+                  {st.households_est ? ` · ~${st.households_est.toLocaleString("en-IN")} households` : ""}
+                </Link>
+              ))}
+            </Card>
+          )}
+
           {p.photos.length > 0 && (
             <div className="flex gap-2 overflow-x-auto pb-1">
               {p.photos.map((ph) => (

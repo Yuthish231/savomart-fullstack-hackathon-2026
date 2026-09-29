@@ -2,6 +2,8 @@ import { NavLink, Outlet } from "react-router-dom";
 import { NAV } from "@/app/nav";
 import { Logo } from "@/components/Logo";
 import { PersonaSwitcher } from "@/components/PersonaSwitcher";
+import { SyncBadge } from "@/components/SyncBadge";
+import { useSyncEngine } from "@/offline/sync";
 import { useAuth } from "@/stores/auth";
 import { cn } from "@/lib/cn";
 
@@ -12,12 +14,16 @@ import { cn } from "@/lib/cn";
 export function AppShell() {
   const user = useAuth((s) => s.user)!;
   const items = NAV[user.role];
+  useSyncEngine(user.role === "SE");
 
   return (
     <div className="flex h-full flex-col">
       <header className="z-20 flex h-14 shrink-0 items-center justify-between bg-savo-purple px-3 shadow md:px-4">
         <Logo />
-        <PersonaSwitcher />
+        <div className="flex items-center gap-2">
+          {user.role === "SE" && <SyncBadge />}
+          <PersonaSwitcher />
+        </div>
       </header>
 
       <div className="flex min-h-0 flex-1">

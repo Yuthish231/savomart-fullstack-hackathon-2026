@@ -12,6 +12,8 @@
   "dependencies": {
     "@tanstack/react-query": "^5.62.7",
     "clsx": "^2.1.1",
+    "dexie": "^4.4.6",
+    "dexie-react-hooks": "^1.1.7",
     "h3-js": "^4.1.0",
     "lucide-react": "^0.468.0",
     "maplibre-gl": "^4.7.1",

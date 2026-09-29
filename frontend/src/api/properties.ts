@@ -158,6 +158,7 @@ export interface PropertyDetail {
   photos: { id: string; kind: string; path: string }[];
   events: TimelineEvent[];
   allowed_transitions: { to: string; label: string; reason_required: boolean }[];
+  studies: { id: string; code: string; status: string; reuse_mode: string; reuse_coverage: number; households_est: number | null }[];
   labels: Record<string, Record<string, string>>;
 }
 

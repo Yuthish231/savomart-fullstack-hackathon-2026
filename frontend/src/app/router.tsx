@@ -13,12 +13,10 @@ import { MyPropertiesPage } from "@/routes/bde/MyPropertiesPage";
 import { PropertyWizard } from "@/routes/bde/PropertyWizard";
 import { TasksPage } from "@/routes/bde/TasksPage";
 import { PropertyPage } from "@/routes/shared/PropertyPage";
-import {
-  BdmStudiesPage,
-  SeAssignmentsPage,
-  SmInboxPage,
-  SmStudiesPage,
-} from "@/routes/placeholders";
+import { StudiesPage } from "@/routes/shared/StudiesPage";
+import { StudyPage } from "@/routes/shared/StudyPage";
+import { AssignmentsPage } from "@/routes/se/AssignmentsPage";
+import { ChunkPage } from "@/routes/se/ChunkPage";
 import { useAuth } from "@/stores/auth";
 
 function RequireAuth({ children }: { children: ReactNode }) {
@@ -69,7 +67,8 @@ export const router = createBrowserRouter([
         { path: "compare", element: <ComparePage /> },
         { path: "pipeline", element: <PipelinePage /> },
         { path: "properties/:id", element: <PropertyPage /> },
-        { path: "studies", element: <BdmStudiesPage /> },
+        { path: "studies", element: <StudiesPage /> },
+        { path: "studies/:id", element: <StudyPage /> },
       ]),
       section("BDE", [
         { path: "tasks", element: <TasksPage /> },
@@ -79,10 +78,14 @@ export const router = createBrowserRouter([
         { path: "properties/:id", element: <PropertyPage /> },
       ]),
       section("SM", [
-        { path: "inbox", element: <SmInboxPage /> },
-        { path: "studies", element: <SmStudiesPage /> },
+        { path: "inbox", element: <StudiesPage mode="inbox" /> },
+        { path: "studies", element: <StudiesPage /> },
+        { path: "studies/:id", element: <StudyPage /> },
       ]),
-      section("SE", [{ path: "assignments", element: <SeAssignmentsPage /> }]),
+      section("SE", [
+        { path: "assignments", element: <AssignmentsPage /> },
+        { path: "chunks/:id", element: <ChunkPage /> },
+      ]),
       { path: "*", element: <HomeRedirect /> },
     ],
   },

@@ -6,6 +6,8 @@ import { ArrowLeft, Bot, Database, FileText, RotateCcw, Send, Store, TrainFront,
 import { isTerminal, useReport, useRetryReport, type Hotspot, type Report } from "@/api/areas";
 import { useTasks } from "@/api/properties";
 import { AssignTask } from "@/components/AssignTask";
+import { useRequestStudy, useStudies } from "@/api/studies";
+import { useNavigate } from "react-router-dom";
 import { MapView } from "@/map/MapView";
 import { BRAND, StoresLayer } from "@/map/layers";
 import { Badge, Button, Card, ErrorNote, Spinner } from "@/components/ui";
@@ -32,6 +34,9 @@ export function ReportPage() {
   const { data: r, error, isLoading } = useReport(id);
   const retry = useRetryReport(id!);
   const tasks = useTasks(id);
+  const studies = useStudies({ report_id: id });
+  const requestStudy = useRequestStudy();
+  const navigate = useNavigate();
   const [assigning, setAssigning] = useState<Hotspot | null | undefined>(undefined);
 
   const areaFc = useMemo<FeatureCollection | null>(
@@ -267,6 +272,22 @@ export function ReportPage() {
             <Button variant="secondary" className="mt-3 w-full" onClick={() => setAssigning(null)}>
               <Send className="h-4 w-4" /> Send an executive to scout this area
             </Button>
+          )}
+          {r.status !== "failed" && r.hotspots && r.hotspots.length > 0 && (
+            <Card className="mt-3 p-3 text-sm">
+              <div className="font-semibold text-slate-800">Ground-truth this area</div>
+              <p className="text-xs text-slate-500">A lane survey 500 m around the top 3 hotspots; recent surveys are reused automatically.</p>
+              {studies.data?.map((st) => (
+                <Link key={st.id} to={`/bdm/studies/${st.id}`} className="mt-1 block text-savo-purple hover:underline">
+                  {st.code} · {st.status.toLowerCase().replace("_", " ")}{st.households_est ? ` · ~${st.households_est.toLocaleString("en-IN")} households` : ""}
+                </Link>
+              ))}
+              <Button variant="secondary" className="mt-2 w-full" loading={requestStudy.isPending}
+                onClick={() => requestStudy.mutate({ target_type: "area", report_id: r.id }, { onSuccess: (st) => navigate(`/bdm/studies/${st.id}`) })}>
+                Request catchment study
+              </Button>
+              {requestStudy.error && <div className="mt-2"><ErrorNote error={requestStudy.error} /></div>}
+            </Card>
           )}
         </div>
       </div>
