@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L10,5L0,10z" fill="#444"/></marker>
+    <style>
+      .box{fill:#fff;stroke:#782B90;stroke-width:2;rx:10}
+      .t{font-size:17px;font-weight:700;fill:#782B90}
+      .s{font-size:13px;fill:#333}
+      .l{stroke:#444;stroke-width:2;fill:none;marker-end:url(#a)}
+      .d{stroke-dasharray:6 4}
+      .lab{font-size:12px;fill:#555;font-style:italic}
+    </style>
+  </defs>
+  <rect width="1200" height="760" fill="#FAF7FC"/>
+  <text x="600" y="38" text-anchor="middle" font-size="26" font-weight="700" fill="#782B90">Savo SiteScout — Architecture</text>
+  <text x="600" y="62" text-anchor="middle" class="s">Which area → which property → is the catchment right?</text>
+
+  <!-- Personas -->
+  <rect x="40" y="90" width="1120" height="60" rx="10" fill="#FFF200" stroke="#782B90" stroke-width="2"/>
+  <text x="600" y="126" text-anchor="middle" font-size="16" font-weight="700" fill="#333">BD Manager (desktop) · BD Executive (phone) · Survey Manager (desktop) · Survey Executive (phone)</text>
+
+  <!-- Frontend -->
+  <rect class="box" x="40" y="185" width="520" height="160"/>
+  <text x="60" y="212" class="t">Web App — React 18 + TypeScript (Vite)</text>
+  <text x="60" y="240" class="s">• Role routes: /bdm · /bde · /se · /shared</text>
+  <text x="60" y="262" class="s">• MapLibre GL + react-map-gl + h3-js (hex/pincode/lane layers)</text>
+  <text x="60" y="284" class="s">• TanStack Query (cache, polling) · Zustand · Tailwind</text>
+  <text x="60" y="306" class="s">• Dexie / IndexedDB: offline drafts + sync outbox</text>
+  <text x="60" y="328" class="s">• Basemap tiles: OpenFreeMap</text>
+
+  <!-- API -->
+  <rect class="box" x="640" y="185" width="520" height="160"/>
+  <text x="660" y="212" class="t">API — FastAPI (uvicorn) /api/v1</text>
+  <text x="660" y="240" class="s">• Routers: auth · areas · scouting · properties · studies · ref</text>
+  <text x="660" y="262" class="s">• Services: scoring · evaluation · pipeline · splitter · rollup</text>
+  <text x="660" y="284" class="s">• JWT + bcrypt, role guards</text>
+  <text x="660" y="306" class="s">• Pydantic v2 · SQLAlchemy 2 · GeoAlchemy2 · Alembic</text>
+  <text x="660" y="328" class="s">• Media storage: local disk (S3-swappable)</text>
+
+  <path class="l" d="M560,250 L636,250"/>
+  <text x="598" y="242" text-anchor="middle" class="lab">REST/JSON</text>
+  <path class="l d" d="M560,300 L636,300"/>
+  <text x="598" y="318" text-anchor="middle" class="lab">offline sync</text>
+
+  <!-- Worker -->
+  <rect class="box" x="640" y="400" width="250" height="140"/>
+  <text x="655" y="427" class="t">Worker process</text>
+  <text x="655" y="452" class="s">python -m app.jobs.worker</text>
+  <text x="655" y="474" class="s">• area reports</text>
+  <text x="655" y="494" class="s">• property evaluation</text>
+  <text x="655" y="514" class="s">• study split · rollup</text>
+
+  <!-- LLM -->
+  <rect class="box" x="920" y="400" width="240" height="140"/>
+  <text x="935" y="427" class="t">LLM — Groq</text>
+  <text x="935" y="452" class="s">openai/gpt-oss-120b</text>
+  <text x="935" y="474" class="s">OpenAI-compatible adapter</text>
+  <text x="935" y="496" class="s">+ Grounding validator</text>
+  <text x="935" y="518" class="s">(rules compute, LLM explains)</text>
+  <path class="l" d="M890,470 L916,470"/>
+
+  <path class="l" d="M765,345 L765,396"/>
+  <text x="772" y="375" class="lab">enqueue job</text><text x="490" y="575" class="lab">SQL (PostGIS)</text>
+
+  <!-- DB -->
+  <rect class="box" x="300" y="590" width="600" height="140" style="fill:#F3E9F7"/>
+  <text x="600" y="618" text-anchor="middle" class="t">PostgreSQL 16 + PostGIS 3.4 (Docker)</text>
+  <rect x="320" y="632" width="270" height="86" rx="8" fill="#fff" stroke="#782B90"/>
+  <text x="335" y="654" font-weight="700" class="s">schema ref</text>
+  <text x="335" y="674" class="s">OSM POIs, roads, lanes, buildings,</text>
+  <text x="335" y="694" class="s">pincodes, wards, stores, H3 features</text>
+  <rect x="610" y="632" width="270" height="86" rx="8" fill="#fff" stroke="#782B90"/>
+  <text x="625" y="654" font-weight="700" class="s">schema app</text>
+  <text x="625" y="674" class="s">users, reports, properties, pipeline</text>
+  <text x="625" y="694" class="s">events, studies, surveys, jobs queue</text>
+
+  <path class="l" d="M660,345 L600,375 L600,586"/>
+  <path class="l" d="M720,540 L720,586"/>
+  <text x="728" y="568" class="lab">claim: FOR UPDATE SKIP LOCKED</text>
+
+  <!-- Ingest -->
+  <rect class="box" x="40" y="400" width="520" height="140"/>
+  <text x="60" y="427" class="t">Ingest pipeline (batch, python -m ingest.run_all)</text>
+  <text x="60" y="452" class="s">fetch → clean → load → precompute H3 res-9 percentiles</text>
+  <text x="60" y="476" class="s">• OpenStreetMap (Overpass) · India Post pincodes (data.gov.in)</text>
+  <text x="60" y="498" class="s">• Census 2011 population · DataMeet wards</text>
+  <text x="60" y="520" class="s">• Savomart Stores API · MOCK rents (labelled)</text>
+  <path class="l" d="M300,540 L400,586"/>
+</svg>
